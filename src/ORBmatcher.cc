@@ -25,7 +25,8 @@
 
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 
-#include<stdint-gcc.h>
+#include<stdint.h>
+#define TO_SIZE_T(x) (x > 0 ? x : 0)
 
 using namespace std;
 
@@ -106,14 +107,14 @@ namespace ORB_SLAM3
                             bestDist=dist;
                             bestLevel2 = bestLevel;
                             bestLevel = (F.Nleft == -1) ? F.mvKeysUn[idx].octave
-                                                        : (idx < F.Nleft) ? F.mvKeys[idx].octave
+                                                        : (idx < TO_SIZE_T(F.Nleft)) ? F.mvKeys[idx].octave
                                                                           : F.mvKeysRight[idx - F.Nleft].octave;
                             bestIdx=idx;
                         }
                         else if(dist<bestDist2)
                         {
                             bestLevel2 = (F.Nleft == -1) ? F.mvKeysUn[idx].octave
-                                                         : (idx < F.Nleft) ? F.mvKeys[idx].octave
+                                                         : (idx < TO_SIZE_T(F.Nleft)) ? F.mvKeys[idx].octave
                                                                            : F.mvKeysRight[idx - F.Nleft].octave;
                             bestDist2=dist;
                         }
@@ -428,10 +429,10 @@ namespace ORB_SLAM3
                                        vector<MapPoint*> &vpMatched, int th, float ratioHamming)
     {
         // Get Calibration Parameters for later projection
-        const float &fx = pKF->fx;
-        const float &fy = pKF->fy;
-        const float &cx = pKF->cx;
-        const float &cy = pKF->cy;
+        [[maybe_unused]] const float &fx = pKF->fx;
+        [[maybe_unused]] const float &fy = pKF->fy;
+        [[maybe_unused]] const float &cx = pKF->cx;
+        [[maybe_unused]] const float &cy = pKF->cy;
 
         Sophus::SE3f Tcw = Sophus::SE3f(Scw.rotationMatrix(),Scw.translation()/Scw.scale());
         Eigen::Vector3f Ow = Tcw.inverse().translation();
@@ -1162,11 +1163,11 @@ namespace ORB_SLAM3
             pCamera = pKF->mpCamera;
         }
 
-        const float &fx = pKF->fx;
-        const float &fy = pKF->fy;
-        const float &cx = pKF->cx;
-        const float &cy = pKF->cy;
-        const float &bf = pKF->mbf;
+        [[maybe_unused]] const float &fx = pKF->fx;
+        [[maybe_unused]] const float &fy = pKF->fy;
+        [[maybe_unused]] const float &cx = pKF->cx;
+        [[maybe_unused]] const float &cy = pKF->cy;
+        [[maybe_unused]] const float &bf = pKF->mbf;
 
         int nFused=0;
 
@@ -1340,10 +1341,10 @@ namespace ORB_SLAM3
     int ORBmatcher::Fuse(KeyFrame *pKF, Sophus::Sim3f &Scw, const vector<MapPoint *> &vpPoints, float th, vector<MapPoint *> &vpReplacePoint)
     {
         // Get Calibration Parameters for later projection
-        const float &fx = pKF->fx;
-        const float &fy = pKF->fy;
-        const float &cx = pKF->cx;
-        const float &cy = pKF->cy;
+        [[maybe_unused]] const float &fx = pKF->fx;
+        [[maybe_unused]] const float &fy = pKF->fy;
+        [[maybe_unused]] const float &cx = pKF->cx;
+        [[maybe_unused]] const float &cy = pKF->cy;
 
         // Decompose Scw
         Sophus::SE3f Tcw = Sophus::SE3f(Scw.rotationMatrix(),Scw.translation()/Scw.scale());
@@ -1703,8 +1704,8 @@ namespace ORB_SLAM3
                     Eigen::Vector3f x3Dw = pMP->GetWorldPos();
                     Eigen::Vector3f x3Dc = Tcw * x3Dw;
 
-                    const float xc = x3Dc(0);
-                    const float yc = x3Dc(1);
+                    [[maybe_unused]] const float xc = x3Dc(0);
+                    [[maybe_unused]] const float yc = x3Dc(1);
                     const float invzc = 1.0/x3Dc(2);
 
                     if(invzc<0)

@@ -22,7 +22,14 @@
 #include <vector>
 #include <list>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudafilters.hpp>
+#include <opencv2/cudafeatures2d.hpp>
+// #include <cuda/Fast.hpp>
+// #include <cuda/Orb.hpp>
 
+// using cv::cuda::ORB;
+// using cv::cuda::FastFeatureDetector;
 
 namespace ORB_SLAM3
 {
