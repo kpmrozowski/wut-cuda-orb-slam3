@@ -2,6 +2,10 @@ build
 out
 .vscode
 compile_commands.json
+.cache
+Examples_old
+Examples
+Vocabulary
 
 # Prerequisites
 *.d
@@ -35,3 +39,4 @@ compile_commands.json
 *.exe
 *.out
 *.app
+profiling

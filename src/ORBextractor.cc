@@ -62,8 +62,26 @@
 #include "ORBextractor.h"
 
 
-using namespace cv;
-using namespace std;
+// using namespace cv;
+// using namespace std;
+using std::vector;
+using std::pair;
+using std::list;
+using std::make_pair;
+
+using cv::Mat;
+using cv::Point2f;
+using cv::KeyPoint;
+using cv::Point;
+using cv::fastAtan2;
+using cv::KeyPointsFilter;
+using cv::InputArray;
+using cv::OutputArray;
+using cv::Size;
+using cv::BORDER_REFLECT_101;
+using cv::Rect;
+using cv::INTER_LINEAR;
+using cv::BORDER_ISOLATED;
 
 namespace ORB_SLAM3
 {
@@ -781,13 +799,13 @@ namespace ORB_SLAM3
     void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoints)
     {
         allKeypoints.resize(nlevels);
+        const int minBorderX = EDGE_THRESHOLD-3;
+        const int minBorderY = minBorderX;
 
         const float W = 35;
 
         for (int level = 0; level < nlevels; ++level)
         {
-            const int minBorderX = EDGE_THRESHOLD-3;
-            const int minBorderY = minBorderX;
             const int maxBorderX = mvImagePyramid[level].cols-EDGE_THRESHOLD+3;
             const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
 
@@ -1117,7 +1135,7 @@ namespace ORB_SLAM3
         //_keypoints.reserve(nkeypoints);
         _keypoints = vector<cv::KeyPoint>(nkeypoints);
 
-        int offset = 0;
+        [[maybe_unused]] int offset = 0;
         //Modified for speeding up stereo fisheye matching
         int monoIndex = 0, stereoIndex = nkeypoints-1;
         for (int level = 0; level < nlevels; ++level)
