@@ -24,18 +24,13 @@
 
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
-
 #include "Thirdparty/Sophus/sophus/geometry.hpp"
-
 #include "ImuTypes.h"
 #include "ORBVocabulary.h"
-
 #include "Converter.h"
 #include "Settings.h"
-
 #include <mutex>
 #include <opencv2/opencv.hpp>
-
 #include "Eigen/Core"
 #include "sophus/se3.hpp"
 

@@ -17,14 +17,10 @@
 */
 
 #include "TwoViewReconstruction.h"
-
 #include "Converter.h"
 #include "GeometricTools.h"
-
 #include "Thirdparty/DBoW2/DUtils/Random.h"
-
 #include<thread>
-
 
 using namespace std;
 namespace ORB_SLAM3

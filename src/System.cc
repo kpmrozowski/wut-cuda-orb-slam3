@@ -18,8 +18,9 @@
 
 
 
-#include "System.h"
-#include "Converter.h"
+#include <System.h>
+#include <Converter.h>
+#include <Viewer.h>
 #include <thread>
 #include <pangolin/pangolin.h>
 #include <iomanip>

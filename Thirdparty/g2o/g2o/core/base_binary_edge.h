@@ -29,6 +29,7 @@
 
 #include <iostream>
 #include <limits>
+#include <type_traits>
 
 #include "base_edge.h"
 #include "robust_kernel.h"
@@ -56,6 +57,10 @@ namespace g2o {
       typedef typename BaseEdge<D,E>::ErrorVector ErrorVector;
       typedef typename BaseEdge<D,E>::InformationType InformationType;
 
+      // typedef typename std::conditional<
+      //    Matrix<double, Di, Dj>::Flags & AlignedBit,
+      //    Eigen::Map<Matrix<double, Di, Dj>, Aligned>,
+      //    Eigen::Map<Matrix<double, Di, Dj>, Unaligned>>::type HessianBlockType;
       typedef Eigen::Map<Matrix<double, Di, Dj>, Matrix<double, Di, Dj>::Flags & AlignedBit ? Aligned : Unaligned > HessianBlockType;
       typedef Eigen::Map<Matrix<double, Dj, Di>, Matrix<double, Dj, Di>::Flags & AlignedBit ? Aligned : Unaligned > HessianBlockTransposedType;
 

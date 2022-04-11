@@ -18,6 +18,7 @@
 
 
 #include "Optimizer.h"
+#include "System.h"
 
 
 #include <complex>
@@ -2501,7 +2502,7 @@ void Optimizer::LocalInertialBA(KeyFrame *pKF, bool *pbStopFlag, Map *pMap, int&
             break;
     }
 
-    bool bNonFixed = (lFixedKeyFrames.size() == 0);
+    [[maybe_unused]] bool bNonFixed = (lFixedKeyFrames.size() == 0);
 
     // Setup optimizer
     g2o::SparseOptimizer optimizer;
@@ -3486,10 +3487,10 @@ void Optimizer::InertialOptimization(Map *pMap, Eigen::Matrix3d &Rwg, double &sc
     optimizer.setVerbose(false);
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
-    float err = optimizer.activeRobustChi2();
+    [[maybe_unused]] float err = optimizer.activeRobustChi2();
     optimizer.optimize(its);
     optimizer.computeActiveErrors();
-    float err_end = optimizer.activeRobustChi2();
+    [[maybe_unused]] float err_end = optimizer.activeRobustChi2();
     // Recover optimized data
     scale = VS->estimate();
     Rwg = VGDir->estimate().Rwg;
@@ -3497,7 +3498,7 @@ void Optimizer::InertialOptimization(Map *pMap, Eigen::Matrix3d &Rwg, double &sc
 
 void Optimizer::LocalBundleAdjustment(KeyFrame* pMainKF,vector<KeyFrame*> vpAdjustKF, vector<KeyFrame*> vpFixedKF, bool *pbStopFlag)
 {
-    bool bShowImages = false;
+    [[maybe_unused]] bool bShowImages = false;
 
     vector<MapPoint*> vpMPs;
 
@@ -4044,6 +4045,19 @@ void Optimizer::MergeInertialBA(KeyFrame* pCurrKF, KeyFrame* pMergeKF, bool *pbS
         {
             // Using mnBALocalForKF we avoid redundance here, one MP can not be added several times to lLocalMapPoints
             MapPoint* pMP = *vit;
+            // if (pMP == nullptr) {
+            //     continue;
+            // }
+            // if(pMP->isBad()) {
+            //     continue;
+            // }
+            // if(pMP->mnBALocalForKF != pCurrKF->mnId) {
+            //     mLocalObs[pMP]=1;
+            //     lLocalMapPoints.push_back(pMP);
+            //     pMP->mnBALocalForKF=pCurrKF->mnId;
+            //     continue;
+            // }
+            // mLocalObs[pMP]++;
             if(pMP)
                 if(!pMP->isBad())
                     if(pMP->mnBALocalForKF!=pCurrKF->mnId)
@@ -5294,7 +5308,7 @@ void Optimizer::OptimizeEssentialGraph4DoF(Map* pMap, KeyFrame* pLoopKF, KeyFram
                                        const LoopClosing::KeyFrameAndPose &CorrectedSim3,
                                        const map<KeyFrame *, set<KeyFrame *> > &LoopConnections)
 {
-    typedef g2o::BlockSolver< g2o::BlockSolverTraits<4, 4> > BlockSolver_4_4;
+    // typedef g2o::BlockSolver< g2o::BlockSolverTraits<4, 4> > BlockSolver_4_4;
 
     // Setup optimizer
     g2o::SparseOptimizer optimizer;
@@ -5366,7 +5380,7 @@ void Optimizer::OptimizeEssentialGraph4DoF(Map* pMap, KeyFrame* pLoopKF, KeyFram
     matLambda(0,0) = 1e3;
 
     // Set Loop edges
-    Edge4DoF* e_loop;
+    [[maybe_unused]] Edge4DoF* e_loop;
     for(map<KeyFrame *, set<KeyFrame *> >::const_iterator mit = LoopConnections.begin(), mend=LoopConnections.end(); mit!=mend; mit++)
     {
         KeyFrame* pKF = mit->first;
