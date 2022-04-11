@@ -15,20 +15,22 @@ if (NOT ${HIP_PLATFORM_AMD})
     if(${CMAKE_VERSION} VERSION_EQUAL 3.7 OR ${CMAKE_VERSION} VERSION_GREATER 3.7)
         option(AUTO_DETECT_ARCH "Detect local GPU compute arch automatically" ON)
     endif()
-    message(STATUS "CUDA_ARCH: \"${CUDA_ARCH}\"")
-    SET(CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")
-    SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++17 )
-    LIST(APPEND CUDA_NVCC_FLAGS "--compiler-options -fno-strict-aliasing -use_fast_math")
+    message(STATUS "CUDA_ARCH: \"${CUDA_ARCH}\" :DDD ")
+    SET(CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")# --compiler-options -use_fast_math")
+   #  SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} )
+    LIST(APPEND CUDA_NVCC_FLAGS "")#  ")
 
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v")# -allow-unsupported-compiler")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v ")# -allow-unsupported-compiler")
 
     SET(CUDA_PROPAGATE_HOST_FLAGS ON)
     SET(CUDA_SEPARABLE_COMPILATION ON)
     SET(CUDA_HOST_COMPILER /usr/bin/clang++-12)
-    SET(CUDA_VERBOSE_BUILD ON)
+    SET(CUDA_VERBOSE_BUILD OFF)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 
     find_package(CUDA REQUIRED)
-    cuda_include_directories( ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc )
+    cuda_include_directories( ${CUDA_TOOLKIT_ROOT_DIR}/samples/common )
 endif()
 
 if(${HIP_PLATFORM_AMD})
@@ -61,6 +63,8 @@ if (${FORCE_COLORED_OUTPUT})
        add_compile_options (-fcolor-diagnostics)
     endif ()
 endif ()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
@@ -68,31 +72,17 @@ ENDIF()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
-
-# Check C++11 or C++0x support
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX11)
-CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-if(COMPILER_SUPPORTS_CXX11)
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
-   add_definitions(-DCOMPILEDWITHC11)
-   message(STATUS "Using flag -std=c++14.")
-elseif(COMPILER_SUPPORTS_CXX0X)
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-   add_definitions(-DCOMPILEDWITHC0X)
-   message(STATUS "Using flag -std=c++0x.")
-else()
-   message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
-endif()
+# set(CMAKE_C_COMPILER /usr/bin/clang-12)
+# set(CMAKE_CXX_COMPILER /usr/bin/clang++-12)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -fno-strict-aliasing -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fno-strict-aliasing -fPIC")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native -fno-strict-aliasing -fPIC")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -fno-strict-aliasing -fPIC")
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
-find_package(OpenCV 4.4)
+find_package(OpenCV 4.5)
    if(NOT OpenCV_FOUND)
       message(FATAL_ERROR "OpenCV > 4.4 not found.")
    endif()
@@ -100,7 +90,7 @@ find_package(OpenCV 4.4)
 MESSAGE("OPENCV VERSION:")
 MESSAGE(${OpenCV_VERSION})
 
-find_package(Eigen3 3.1.0 REQUIRED)
+find_package(Eigen3 3.3.7 REQUIRED)
 find_package(Pangolin REQUIRED)
 # find_package(realsense2)
 find_package(fmt REQUIRED)
@@ -114,6 +104,8 @@ ${PROJECT_SOURCE_DIR}/include/CameraModels
 ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
+${CUDA_TOOLKIT_ROOT_DIR}/samples/common
+/usr/local/include/opencv4
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -177,9 +169,14 @@ src/Settings.cc
 # include/SerializationUtils.h
 # include/Config.h
 # include/Settings.h
+src/cuda/Allocator_gpu.cu
+src/cuda/Fast_gpu.cu
+src/cuda/Orb_gpu.cu
+src/cuda/Cuda.cu
 )
 
 add_subdirectory(Thirdparty/g2o)
+add_subdirectory(gpu)
 
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}

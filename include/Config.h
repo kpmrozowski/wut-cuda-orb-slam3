@@ -55,10 +55,10 @@ public:
 
 private:
 
-    ViewerConfig mViewerConfig;
-    CameraConfig mCameraConfig;
-    ORBExtractorConfig mORBConfig;
-    IMUConfig mIMUConfig;
+    [[maybe_unused]] ViewerConfig mViewerConfig;
+    [[maybe_unused]] CameraConfig mCameraConfig;
+    [[maybe_unused]] ORBExtractorConfig mORBConfig;
+    [[maybe_unused]] IMUConfig mIMUConfig;
 
 };
 

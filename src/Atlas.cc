@@ -17,8 +17,8 @@
 */
 
 #include "Atlas.h"
+#include "MapPoint.h"
 #include "Viewer.h"
-
 #include "GeometricCamera.h"
 #include "Pinhole.h"
 #include "KannalaBrandt8.h"
@@ -341,7 +341,7 @@ void Atlas::PostLoad()
     }
 
     mspMaps.clear();
-    unsigned long int numKF = 0, numMP = 0;
+    [[maybe_unused]] unsigned long int numKF = 0, numMP = 0;
     for(Map* pMi : mvpBackupMaps)
     {
         mspMaps.insert(pMi);

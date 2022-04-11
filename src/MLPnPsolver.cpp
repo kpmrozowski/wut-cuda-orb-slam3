@@ -1053,4 +1053,4 @@ namespace ORB_SLAM3 {
 		jacs(1, 4) = s2*t65-t14*t101*t167*t212*(1.0/2.0);
 		jacs(1, 5) = s3*t65-t14*t101*t167*t216*(1.0/2.0);
     }
-}//End namespace ORB_SLAM2
+}//End namespace ORB_SLAM3

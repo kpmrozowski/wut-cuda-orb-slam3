@@ -24,10 +24,9 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudafilters.hpp>
-#include <opencv2/cudafeatures2d.hpp>
-// #include <cuda/Fast.hpp>
-// #include <cuda/Orb.hpp>
-
+#include <cuda/Fast.hpp>
+#include <cuda/Orb.hpp>
+// #include <opencv2/cudafeatures2d.hpp>
 // using cv::cuda::ORB;
 // using cv::cuda::FastFeatureDetector;
 
@@ -86,8 +85,11 @@ public:
     std::vector<float> inline GetInverseScaleSigmaSquares(){
         return mvInvLevelSigma2;
     }
-
-    std::vector<cv::Mat> mvImagePyramid;
+    
+    // I assume all frames are of the same dimension
+    bool mvImagePyramidAllocatedFlag;
+    std::vector<cv::cuda::GpuMat> mvImagePyramid;
+    std::vector<cv::cuda::GpuMat> mvImagePyramidBorder;
 
 protected:
 
@@ -98,6 +100,8 @@ protected:
 
     void ComputeKeyPointsOld(std::vector<std::vector<cv::KeyPoint> >& allKeypoints);
     std::vector<cv::Point> pattern;
+    cv::Ptr<cv::cuda::Filter> mpGaussianFilter;
+    cv::cuda::Stream mcvStream;
 
     int nfeatures;
     double scaleFactor;
@@ -113,6 +117,10 @@ protected:
     std::vector<float> mvInvScaleFactor;    
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
+    
+    cuda::GpuFast gpuFast;
+    cuda::IC_Angle ic_angle;
+    cuda::GpuOrb gpuOrb;
 };
 
 } //namespace ORB_SLAM

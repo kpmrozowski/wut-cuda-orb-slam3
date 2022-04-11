@@ -18,24 +18,26 @@
 
 
 #include "Map.h"
+#include "KeyFrame.h"
+#include "KeyFrameDatabase.h"
 
-#include<mutex>
+#include <mutex>
 
 namespace ORB_SLAM3
 {
 
 long unsigned int Map::nNextId=0;
 
-Map::Map():mnMaxKFid(0),mnBigChangeIdx(0), mbImuInitialized(false), mnMapChange(0), mpFirstRegionKF(static_cast<KeyFrame*>(NULL)),
-mbFail(false), mIsInUse(false), mHasTumbnail(false), mbBad(false), mnMapChangeNotified(0), mbIsInertial(false), mbIMU_BA1(false), mbIMU_BA2(false)
+Map::Map():mpFirstRegionKF(static_cast<KeyFrame*>(NULL)),mbFail(false), mbImuInitialized(false), mnMapChange(0), mnMapChangeNotified(0),
+mnMaxKFid(0), mnBigChangeIdx(0), mIsInUse(false), mHasTumbnail(false), mbBad(false), mbIsInertial(false), mbIMU_BA1(false), mbIMU_BA2(false)
 {
     mnId=nNextId++;
     mThumbnail = static_cast<GLubyte*>(NULL);
 }
 
-Map::Map(int initKFid):mnInitKFid(initKFid), mnMaxKFid(initKFid),/*mnLastLoopKFid(initKFid),*/ mnBigChangeIdx(0), mIsInUse(false),
-                       mHasTumbnail(false), mbBad(false), mbImuInitialized(false), mpFirstRegionKF(static_cast<KeyFrame*>(NULL)),
-                       mnMapChange(0), mbFail(false), mnMapChangeNotified(0), mbIsInertial(false), mbIMU_BA1(false), mbIMU_BA2(false)
+Map::Map(int initKFid):mpFirstRegionKF(static_cast<KeyFrame*>(NULL)), mbFail(false),/*mnLastLoopKFid(initKFid),*/ mbImuInitialized(false), mnMapChange(0),
+                       mnMapChangeNotified(0), mnInitKFid(initKFid), mnMaxKFid(initKFid), mnBigChangeIdx(0),
+                       mIsInUse(false), mHasTumbnail(false), mbBad(false), mbIsInertial(false), mbIMU_BA1(false), mbIMU_BA2(false)
 {
     mnId=nNextId++;
     mThumbnail = static_cast<GLubyte*>(NULL);

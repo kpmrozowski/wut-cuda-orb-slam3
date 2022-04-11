@@ -21,7 +21,6 @@
 #define MAP_H
 
 #include "MapPoint.h"
-#include "KeyFrame.h"
 
 #include <set>
 #include <pangolin/pangolin.h>
