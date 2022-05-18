@@ -6,6 +6,8 @@ compile_commands.json
 Examples_old
 Examples
 Vocabulary
+cmake-build-debug
+.idea
 
 # Prerequisites
 *.d
