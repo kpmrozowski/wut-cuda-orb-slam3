@@ -39,4 +39,11 @@ Vocabulary
 *.exe
 *.out
 *.app
+<<<<<<< HEAD
 profiling
+=======
+
+cmake-build-debug
+Examples
+Examples_old
+>>>>>>> 8f20e9e (work work work)
