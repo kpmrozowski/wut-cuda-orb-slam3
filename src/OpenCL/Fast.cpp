@@ -15,7 +15,7 @@ void IC_Angle::launch_async(const cv::_InputArray &_image, cv::KeyPoint *_keyPoi
     compute::vector<cv::KeyPoint> gpuKeyPoints(nPoints);
     compute::copy(_keyPoints, _keyPoints + nPoints, gpuKeyPoints.begin());
 
-    auto addBorderRes = gpuMan.run(Program::AddBorder, "addBorder_kernel", nPoints, minBorderX, minBorderY, octave, size);
+    auto addBorderRes = gpuMan.run(Program::AngleKernel, "addBorder_kernel", nPoints, minBorderX, minBorderY, octave, size);
 
     auto angleRes = gpuMan.run(Program::AngleKernel, "IC_Angle_kernel", nPoints, minBorderX, minBorderY, octave, size);
 
