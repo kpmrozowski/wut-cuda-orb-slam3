@@ -4,8 +4,8 @@
 
 #include <vector>
 #include <opencv2/core/ocl.hpp>
-#include <opencv2/core/opencl/ocl_defs.hpp>
-#include <clc/clc.h>
+//#include <opencv2/core/opencl/ocl_defs.hpp>
+//#include <clc/clc.h>
 #include <boost/compute.hpp>
 
 using GpuKeyPoints = boost::compute::vector<cv::KeyPoint>;
