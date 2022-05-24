@@ -26,12 +26,7 @@
 
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 
-<<<<<<< HEAD
-#include<stdint.h>
-#define TO_SIZE_T(x) (x > 0 ? x : 0)
-=======
 //#include<stdint-gcc.h>
->>>>>>> 07010af (some cl attempts)
 
 using namespace std;
 
