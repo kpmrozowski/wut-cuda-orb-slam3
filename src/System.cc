@@ -32,7 +32,6 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/xml_iarchive.hpp>
 #include <boost/archive/xml_oarchive.hpp>
-#define TO_SIZE_T(x) (x > 0 ? x : 0)
 
 namespace ORB_SLAM3
 {
@@ -108,7 +107,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     mStrVocabularyFilePath = strVocFile;
 
-    [[maybe_unused]] bool loadedAtlas = false;
+    bool loadedAtlas = false;
 
     if(mStrLoadAtlasFromFile.empty())
     {
@@ -787,7 +786,7 @@ void System::SaveTrajectoryEuRoC(const string &filename, Map* pMap)
         return;
     }*/
 
-    [[maybe_unused]] int numMaxKFs = 0;
+    int numMaxKFs = 0;
 
     vector<KeyFrame*> vpKFs = pMap->GetAllKeyFrames();
     sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);
@@ -1352,7 +1351,7 @@ bool System::isLost()
         return false;
     else
     {
-        if (mpTracker->mState == Tracking::LOST) //||(mpTracker->mState==Tracking::RECENTLY_LOST))
+        if ((mpTracker->mState==Tracking::LOST)) //||(mpTracker->mState==Tracking::RECENTLY_LOST))
             return true;
         else
             return false;

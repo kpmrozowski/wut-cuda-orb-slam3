@@ -2341,13 +2341,13 @@ void Tracking::StereoInitialization()
             if (!mCurrentFrame.mpImuPreintegrated || !mLastFrame.mpImuPreintegrated)
             {
                 cout << "not IMU meas" << endl;
-               //  return;
+                return;
             }
 
             if (!mFastInit && (mCurrentFrame.mpImuPreintegratedFrame->avgA-mLastFrame.mpImuPreintegratedFrame->avgA).norm()<0.5)
             {
                 cout << "not enough acceleration" << endl;
-               //  return;
+                return;
             }
 
             if(mpImuPreintegratedFromLastKF)
