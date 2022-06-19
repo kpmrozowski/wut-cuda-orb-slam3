@@ -23,17 +23,20 @@ cv::ocl::ProgramSource loadFromSourceFile(const std::string &filename)
 {
     std::ifstream file(filename);
     if (!file.is_open()) {
+        std::cerr << "no such file or directory: " << filename << '\n';
         exit(1);
     }
+    std::ifstream ifs(filename);
+    std::string kernelSource((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
-    file.seekg(0, std::ios::end);
-    auto size = file.tellg();
-    file.seekg(0, std::ios::beg);
+//    file.seekg(0, std::ios::end);
+//    auto size = file.tellg();
+//    file.seekg(0, std::ios::beg);
+//
+//    std::string program(size, ' ');
+//    std::copy_n(std::istreambuf_iterator(file), size, program.begin());
 
-    std::string program(size, ' ');
-    std::copy_n(std::istreambuf_iterator(file), size, program.begin());
-
-    return cv::ocl::ProgramSource(program);
+    return cv::ocl::ProgramSource(kernelSource);
 }
 
 Manager::Manager() :
@@ -42,9 +45,10 @@ Manager::Manager() :
     m_queue(m_context, m_device),
     m_workGroupSize(m_device.maxWorkGroupSize()),
     m_programs{
-            cv::ocl::Program(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0", m_errorMsg),
-            cv::ocl::Program(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0", m_errorMsg),
-            cv::ocl::Program(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0", m_errorMsg)}
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0", m_errorMsg),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0", m_errorMsg),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0", m_errorMsg)
+    }
 {
 }
 

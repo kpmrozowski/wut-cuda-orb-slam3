@@ -45,8 +45,8 @@ void GpuOrb::launch_async(cv::InputArray _image, const cv::KeyPoint *_keyPoints,
     m_gpuDesc.setTo(cv::Scalar::all(0));
     cv::ocl::Image2D image(gpuImageSrc);
     cv::ocl::Image2D desc(m_gpuDesc);
-    gpuMan.cv_run(Program::OrbKernel, "calcOrb_kernel",  32*8, 1, true,
-                    gpuImageSrc, m_gpuKeyPoints, nPoints, m_gpuDescriptors, gpuImageSrc.cols);
+//    gpuMan.cv_run(Program::OrbKernel, "calcOrb_kernel",  32*8, 1, true,
+//                    gpuImageSrc, m_gpuKeyPoints, nPoints, m_gpuDescriptors, gpuImageSrc.cols);
 //    gpuMan.run
 //    auto ptr = image.ptr();
 }

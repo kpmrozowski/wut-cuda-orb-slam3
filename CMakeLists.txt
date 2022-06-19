@@ -460,4 +460,5 @@ if(realsense2_FOUND)
 endif()
 
 add_subdirectory(src/OpenCL)
+add_subdirectory(test/src)
 add_subdirectory(tool)

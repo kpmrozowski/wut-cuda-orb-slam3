@@ -12,6 +12,7 @@ typedef struct {
     int class_id;//!< object class (if the keypoints need to be clustered by an object they belong to)
 } key_point_t;
 
+/*
 __constant int c_u_max[32] = {};
 
 short2 make_short2(short x, short y)
@@ -23,7 +24,6 @@ short2 make_short2(short x, short y)
 }
 
 typedef unsigned long long usize_t;
-
 __kernel void IC_Angle_kernel(__global unsigned char *image, usize_t step, __global key_point_t *keypoints, const int npoints, const int half_k)
 {
     __local int smem0[256];
@@ -101,6 +101,7 @@ __kernel void IC_Angle_kernel(__global unsigned char *image, usize_t step, __glo
         }
     }
 }
+*/
 
 __kernel void addBorder_kernel(__global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
     int tid = get_global_id(0);
