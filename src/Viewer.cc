@@ -18,8 +18,6 @@
 
 
 #include "Viewer.h"
-#include "Tracking.h"
-#include "System.h"
 #include <pangolin/pangolin.h>
 
 #include <mutex>

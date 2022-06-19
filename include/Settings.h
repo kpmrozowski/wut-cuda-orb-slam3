@@ -172,7 +172,7 @@ namespace ORB_SLAM3 {
 
         bool bNeedToUndistort_;
         bool bNeedToRectify_;
-        bool bNeedToResize1_;
+        bool bNeedToResize1_, bNeedToResize2_;
 
         Sophus::SE3f Tlr_;
         float thDepth_;

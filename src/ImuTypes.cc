@@ -418,4 +418,4 @@ Calib::Calib(const Calib &calib)
 
 } //namespace IMU
 
-} //namespace ORB_SLAM3
+} //namespace ORB_SLAM2

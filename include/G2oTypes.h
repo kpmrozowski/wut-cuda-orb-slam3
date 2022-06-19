@@ -842,6 +842,6 @@ public:
     Eigen::Vector3d dtij;
 };
 
-} //namespace ORB_SLAM3
+} //namespace ORB_SLAM2
 
 #endif // G2OTYPES_H

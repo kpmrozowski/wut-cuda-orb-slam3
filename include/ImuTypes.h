@@ -201,7 +201,7 @@ public:
 
     void printMeasurements() const {
         std::cout << "pint meas:\n";
-        for(size_t i=0; i<mvMeasurements.size(); i++){
+        for(int i=0; i<mvMeasurements.size(); i++){
             std::cout << "meas " << mvMeasurements[i].t << std::endl;
         }
         std::cout << "end pint meas:\n";
@@ -261,6 +261,6 @@ Eigen::Matrix3f NormalizeRotation(const Eigen::Matrix3f &R);
 
 }
 
-} //namespace ORB_SLAM3
+} //namespace ORB_SLAM2
 
 #endif // IMUTYPES_H
