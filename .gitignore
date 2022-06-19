@@ -6,6 +6,8 @@ compile_commands.json
 Examples_old
 Examples
 Vocabulary
+Vocabulary/
+datasets
 
 # Prerequisites
 *.d
@@ -43,4 +45,3 @@ Vocabulary
 cmake-build-debug
 Examples
 Examples_old
-datasets
