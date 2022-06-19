@@ -26,7 +26,7 @@
 
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 
-//#include<stdint-gcc.h>
+#define TO_SIZE_T(x) (x > 0 ? x : 0)
 
 using namespace std;
 

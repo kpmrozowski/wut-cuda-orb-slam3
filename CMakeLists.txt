@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(ORB_SLAM3)
 
 set(CMAKE_GENERATOR "Ninja")
+option(CUDA_PLATFORM "should be built for CUDA" OFF)
 option(HIP_PLATFORM_AMD "should be built for AMD" OFF)
 option(SPDLOG_EXTERNAL_FMT "bulding spdlog with external fmt" OFF)
 option(MEASURE_TIME "measure time too?" OFF)
@@ -10,7 +11,7 @@ if (${SPDLOG_EXTERNAL_FMT})
     add_compile_options(-DSPDLOG_FMT_EXTERNAL)
 endif()
 
-if (NOT ${HIP_PLATFORM_AMD})
+if (${CUDA_PLATFORM})
     set(CUDA_ARCH "-arch=sm_80" CACHE STRING "Value of the NVCC -arch option.")
     if(${CMAKE_VERSION} VERSION_EQUAL 3.7 OR ${CMAKE_VERSION} VERSION_GREATER 3.7)
         option(AUTO_DETECT_ARCH "Detect local GPU compute arch automatically" ON)
@@ -31,6 +32,9 @@ if (NOT ${HIP_PLATFORM_AMD})
     cuda_include_directories( ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc )
 endif()
 
+if(${CUDA_PLATFORM})
+    include_directories(/usr/local/cuda/targets/x86_64-linux/include)
+endif()
 if(${HIP_PLATFORM_AMD})
     include_directories(/opt/rocm/hiprand/include)
     include_directories(/opt/rocm/rocrand/include)
@@ -38,19 +42,18 @@ if(${HIP_PLATFORM_AMD})
     include_directories(/opt/rocm/hip/include)
     link_directories(/opt/rocm/lib)
     add_definitions(-D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_HCC__)
-else()
-    include_directories(/usr/local/cuda/targets/x86_64-linux/include)
+endif()
+
+if (${CUDA_PLATFORM})
+   add_subdirectory(src/Eden_resources)
+   add_subdirectory(src/cudatest)
+endif()
+if(${HIP_PLATFORM_AMD})
+   add_subdirectory(src/HipEdenResources)
 endif()
 
 if(${MEASURE_TIME})
     add_definitions(-DMEASURE_TIME)
-endif()
-
-if (NOT ${HIP_PLATFORM_AMD})
-   add_subdirectory(src/Eden_resources)
-   add_subdirectory(src/cudatest)
-else()
-   add_subdirectory(src/HipEdenResources)
 endif()
 
 option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." FALSE)
@@ -118,7 +121,7 @@ ${Pangolin_INCLUDE_DIRS}
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
-cuda_add_library(${PROJECT_NAME} SHARED
+add_library(${PROJECT_NAME} SHARED
 src/System.cc
 src/Tracking.cc
 src/LocalMapping.cc
