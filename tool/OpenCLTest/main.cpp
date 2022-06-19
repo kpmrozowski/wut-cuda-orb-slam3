@@ -69,6 +69,6 @@ void runSimpleOpenGLProgram()
 }
 
 int main() {
-//    runSimpleOpenGLProgram();
-    runKeyPointsKernel();
+    runSimpleOpenGLProgram();
+//    runKeyPointsKernel();
 }
