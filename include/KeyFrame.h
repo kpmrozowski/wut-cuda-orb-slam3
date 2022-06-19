@@ -24,8 +24,9 @@
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 #include "ORBVocabulary.h"
-// #include "ORBextractor.h"
+#include "ORBextractor.h"
 #include "Frame.h"
+#include "KeyFrameDatabase.h"
 #include "ImuTypes.h"
 
 #include "GeometricCamera.h"

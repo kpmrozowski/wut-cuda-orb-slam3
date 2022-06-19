@@ -22,11 +22,11 @@
 
 
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <thread>
-#include <opencv2/core/core.hpp>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string>
+#include<thread>
+#include<opencv2/core/core.hpp>
 
 #include "Tracking.h"
 #include "FrameDrawer.h"
@@ -36,6 +36,7 @@
 #include "LoopClosing.h"
 #include "KeyFrameDatabase.h"
 #include "ORBVocabulary.h"
+#include "Viewer.h"
 #include "ImuTypes.h"
 #include "Settings.h"
 
