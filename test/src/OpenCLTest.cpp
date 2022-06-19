@@ -5,8 +5,10 @@
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <filesystem>
 #include <OpenCL/Manager.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <stdexcept>
 
 typedef struct
 {
@@ -48,11 +50,14 @@ std::array<key_point_t, 5> keyPoints{
 TEST(runKeyPointsKernel, OpenCLTest)
 {
     using ORB_SLAM3::opencl::Program;
-
     auto &manager = ORB_SLAM3::opencl::Manager::the();
-
-    auto mat1      = cv::imread("/home/ego/more/projects/wut-cuda-orb-slam3/datasets/MH01/mav0/cam0/data/"
-                                     "1403636579763555584.png", cv::IMREAD_GRAYSCALE);
+    auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
+    if (not std::filesystem::is_regular_file(filename)) {
+        throw std::runtime_error("image does not exist");
+    } else {
+        std::cout << "image exists\n";
+    }
+    auto mat1      = cv::imread(filename, cv::IMREAD_GRAYSCALE);
     mat1.convertTo(mat1, CV_32F, 1.0 / 255);
     auto umat_src  = mat1.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     auto umat_dest = cv::UMat(mat1.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
@@ -63,10 +68,18 @@ TEST(runKeyPointsKernel, OpenCLTest)
     boost::compute::copy(keyPoints.begin(), keyPoints.end(), gpuKeyPoints.begin());
 
     // __kernel void addBorder_kernel(__global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
-    auto start = manager.cv_run(Program::TestProgram, "squareVector", 5, true, image, gpuKeyPoints.get_buffer().get(),
-                             /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
+    // auto start = manager.cv_run(Program::TestProgram, "squareVector", 5, true, image, gpuKeyPoints.get_buffer().get(),
+    //                          /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
+    size_t global_work_size = 5;
+    size_t local_work_group = manager.cv_device().maxWorkGroupSize();
+    cv::ocl::Kernel kernel("squareVector",  manager.cv_program(Program::TestProgram));
+    kernel.args(image, gpuKeyPoints.get_buffer().get(), /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
+    std::cout << "ok1\n";
+    bool start =  kernel.run(1, &global_work_size, &local_work_group, true, manager.cv_queue());
+    std::cout << "ok2\n";
 
     ASSERT_TRUE(start);
+    std::cout << "ok3\n";
 
     std::vector<key_point_t> values_out(5);
     boost::compute::copy(gpuKeyPoints.begin(), gpuKeyPoints.end(), values_out.begin());
@@ -79,6 +92,7 @@ TEST(runKeyPointsKernel, OpenCLTest)
 TEST(runSimpleOpenGLProgram, OpenCLTest)
 {
     using ORB_SLAM3::opencl::Program;
+    using std::cout;
     namespace compute = boost::compute;
 
     //    std::string source = BOOST_COMPUTE_STRINGIZE_SOURCE(
@@ -97,10 +111,13 @@ TEST(runSimpleOpenGLProgram, OpenCLTest)
 
     compute::vector<key_point_t> gpuValues(256);
     compute::copy(values.begin(), values.end(), gpuValues.begin());
+    cout << "ok1\n";
 
     auto start = manager.run(Program::TestProgram, "squareVector", 256, gpuValues,
                              /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
+    cout << "ok2\n";
     start.wait();
+    cout << "ok3\n";
 
     compute::copy(gpuValues.begin(), gpuValues.end(), values_out.begin());
 
