@@ -22,7 +22,7 @@ short2 make_short2(short x, short y)
     return res;
 }
 
-typedef unsigned long long usize_t;
+typedef unsigned long usize_t;
 
 __kernel void IC_Angle_kernel(__global unsigned char *image, usize_t step, __global key_point_t *keypoints, const int npoints, const int half_k)
 {

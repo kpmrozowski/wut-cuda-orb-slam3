@@ -80,8 +80,8 @@ __kernel void calcOrb_kernel(__global const Point3b *image,
     int val, idx;
     for (idx = 0; idx < 16; idx += 2)
     {
-        int xIdx = loc[0] + (int)(pattern[idx].x * cosA - pattern[idx].y * sinA);
-        int yIdx = loc[1] + (int)(pattern[idx].x * sinA + pattern[idx].y * cosA);
+        int xIdx = loc.x + (int)(pattern[idx].x * cosA - pattern[idx].y * sinA);
+        int yIdx = loc.y + (int)(pattern[idx].x * sinA + pattern[idx].y * cosA);
         t0 = image[xIdx + yIdx * width];
         t1 = image[xIdx + yIdx * width + 1];
         val |= is_rhs_greater(t0, t1) << (idx / 2);

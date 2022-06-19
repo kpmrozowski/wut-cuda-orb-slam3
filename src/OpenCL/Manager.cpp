@@ -1,5 +1,6 @@
 #include <fstream>
 #include <OpenCL/Manager.hpp>
+#include <filesystem>
 
 namespace ORB_SLAM3::opencl {
 
@@ -23,6 +24,8 @@ cv::ocl::ProgramSource loadFromSourceFile(const std::string &filename)
 {
     std::ifstream file(filename);
     if (!file.is_open()) {
+        std::cout << "I am in: " << std::filesystem::current_path() << "\n";
+        std::cout << "No such file or directory: " << filename << "\n";
         exit(1);
     }
 

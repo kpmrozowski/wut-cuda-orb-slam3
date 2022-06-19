@@ -81,6 +81,8 @@ class Manager
     auto cv_run(Program programId, const std::string &name, std::size_t global_work_size, bool sync, TArgs &&...args)
     {
         cv::ocl::Kernel kernel(name.data(),  cv_program(programId));
+        if constexpr (sizeof...(TArgs) == 5)
+            kernel.args(args...);
         kernel.args(args...);
         return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
     };

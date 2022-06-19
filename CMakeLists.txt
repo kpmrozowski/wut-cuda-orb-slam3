@@ -181,6 +181,7 @@ src/Settings.cc
 
 add_subdirectory(Thirdparty/g2o)
 
+find_package(Boost COMPONENTS system filesystem unit_test_framework REQUIRED)
 target_link_libraries(${PROJECT_NAME} PUBLIC
 OpenCL
 fmt
@@ -461,3 +462,4 @@ endif()
 
 add_subdirectory(src/OpenCL)
 add_subdirectory(tool)
+add_subdirectory(tests)
