@@ -1143,81 +1143,43 @@ namespace ORB_SLAM3
         return monoIndex;
     }
 
-    void ORBextractor::ComputePyramid2(Mat image) {
-        printf("mvInvScaleFactor[%d] = {", nlevels);
-        for (float f : mvInvScaleFactor) {
-            printf("%.4f ", f);
-        }
-        printf("}\n");
-        // first frame, allocate the Pyramids
-        for (int level = 0; level < nlevels; ++level) {
-            printf("level=%d\n", level);
-            float scale = mvInvScaleFactor[level];
-            ::cv::Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
-            ::cv::Size wholeSize(sz.width + EDGE_THRESHOLD*2, sz.height + EDGE_THRESHOLD*2);
-            ::cv::Range rangex{EDGE_THRESHOLD, EDGE_THRESHOLD + sz.width};
-            ::cv::Range rangey{EDGE_THRESHOLD, EDGE_THRESHOLD + sz.height};
-            cv::cuda::GpuMat temp(wholeSize, image.type(), cuda::gpu_mat_allocator);
-            // cuda::GpuMat target(wholeSize, image.type());
-            mvImagePyramid[level] = temp(::cv::Rect(EDGE_THRESHOLD, EDGE_THRESHOLD, sz.width, sz.height)).clone();
-            for (const auto& pyramid : mvImagePyramid)
-                printf("mvImagePyramid.shape=(%d,%d), size=%zu 1\n", pyramid.cols, pyramid.rows, mvImagePyramid.size());
-
-            // Compute the resized image
-            if (level != 0) {
-                printf("if\n");
-                ::cv::cuda::resize(mvImagePyramid[level-1], mvImagePyramid[level], sz, 0, 0, INTER_LINEAR, mcvStream);
-                ::cv::cuda::copyMakeBorder(mvImagePyramid[level], temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
-                                           BORDER_REFLECT_101, ::cv::Scalar(), mcvStream);
-                printf("after copyMakeBorder 1\n");
-            } else {
-                ::cv::cuda::GpuMat gpuImg(image, cuda::gpu_mat_allocator);
-//            cudaMemcpy(gpuImg.cudaPtr(), temp.cudaPtr(), cudaMemcpyDeviceToDevice);
-                ::cv::cuda::copyMakeBorder(gpuImg, temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
-                                           BORDER_REFLECT_101, ::cv::Scalar(), mcvStream);
-            }
-
-        }
-        printf("Before waitForCompletion!\n");
-        mcvStream.waitForCompletion();
-        printf("ComputePyramid FINISH!\n");
+void ORBextractor::ComputePyramid(Mat image) {
+    printf("mvInvScaleFactor[%d] = {", nlevels);
+    for (float f : mvInvScaleFactor) {
+        printf("%.4f ", f);
     }
-
-    void ORBextractor::ComputePyramid(Mat image) {
-        if (!mvImagePyramidAllocatedFlag) {
-            mvImagePyramid.clear();
-            // first frame, allocate the Pyramids
-            for (int level = 0; level < nlevels; ++level) {
-                float scale = mvInvScaleFactor[level];
-                ::cv::Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
-                ::cv::Size wholeSize(sz.width + EDGE_THRESHOLD*2, sz.height + EDGE_THRESHOLD*2);
-                cv::cuda::GpuMat target(wholeSize, image.type(), cuda::gpu_mat_allocator);
-                // cuda::GpuMat target(wholeSize, image.type());
-                mvImagePyramidBorder.push_back(target);
-                mvImagePyramid.push_back(target(::cv::Rect(EDGE_THRESHOLD, EDGE_THRESHOLD, sz.width, sz.height)));
-            }
-            mvImagePyramidBorder.resize(nlevels);
-            mvImagePyramid.resize(nlevels);
-            mpGaussianFilter = cv::cuda::createGaussianFilter(mvImagePyramid[0].type(), mvImagePyramid[0].type(), ::cv::Size(7, 7), 2, 2, BORDER_REFLECT_101);
-            mvImagePyramidAllocatedFlag = true;
+    printf("}\n");
+    // first frame, allocate the Pyramids
+    for (int level = 0; level < nlevels; ++level) {
+        printf("level=%d\n", level);
+        float scale = mvInvScaleFactor[level];
+        ::cv::Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
+        ::cv::Size wholeSize(sz.width + EDGE_THRESHOLD*2, sz.height + EDGE_THRESHOLD*2);
+        ::cv::Range rangex{EDGE_THRESHOLD, EDGE_THRESHOLD + sz.width};
+        ::cv::Range rangey{EDGE_THRESHOLD, EDGE_THRESHOLD + sz.height};
+        cv::cuda::GpuMat temp(wholeSize, image.type(), cuda::gpu_mat_allocator);
+        // cuda::GpuMat target(wholeSize, image.type());
+        mvImagePyramid[level] = temp(::cv::Rect(EDGE_THRESHOLD, EDGE_THRESHOLD, sz.width, sz.height)).clone();
+        for (const auto& pyramid : mvImagePyramid)
+            printf("mvImagePyramid.shape=(%d,%d), size=%zu 1\n", pyramid.cols, pyramid.rows, mvImagePyramid.size());
+        
+        // Compute the resized image
+        if (level != 0) {
+            printf("if\n");
+            ::cv::cuda::resize(mvImagePyramid[level-1], mvImagePyramid[level], sz, 0, 0, INTER_LINEAR, mcvStream);
+            ::cv::cuda::copyMakeBorder(mvImagePyramid[level], temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
+                                    BORDER_REFLECT_101, ::cv::Scalar(), mcvStream);
+            printf("after copyMakeBorder 1\n");
+        } else {
+            ::cv::cuda::GpuMat gpuImg(image);
+            ::cv::cuda::copyMakeBorder(gpuImg, temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
+                                    BORDER_REFLECT_101, ::cv::Scalar(), mcvStream);
         }
 
-        for (int level = 0; level < nlevels; ++level) {
-            float scale = mvInvScaleFactor[level];
-            ::cv::Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
-            ::cv::cuda::GpuMat target(mvImagePyramidBorder[level]);
-            // Compute the resized image
-            if (level != 0) {
-                ::cv::cuda::resize(mvImagePyramid[level-1], mvImagePyramid[level], sz, 0, 0, INTER_LINEAR, mcvStream);
-                ::cv::cuda::copyMakeBorder(mvImagePyramid[level], target, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
-                                           BORDER_REFLECT_101, cv::Scalar(), mcvStream);
-            } else {
-                ::cv::cuda::GpuMat gpuImg(image, cuda::gpu_mat_allocator);
-                ::cv::cuda::copyMakeBorder(gpuImg, target, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
-                                           BORDER_REFLECT_101, cv::Scalar(), mcvStream);
-            }
-        }
-        mcvStream.waitForCompletion();
     }
+    printf("Before waitForCompletion!\n");
+    mcvStream.waitForCompletion();
+    printf("ComputePyramid FINISH!\n");
+}
 
 } //namespace ORB_SLAM
