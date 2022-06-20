@@ -66,6 +66,11 @@ class Manager
         return m_queue;
     }
 
+    [[nodiscard]] constexpr std::string &errorMsg()
+    {
+        return m_errorMsg;
+    }
+
     [[nodiscard]] boost::compute::program program(Program program)
     {
         return boost::compute::program{
