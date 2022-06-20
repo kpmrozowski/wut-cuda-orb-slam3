@@ -23,3 +23,23 @@ __kernel void squareVector(__global unsigned char *image, __global key_point_t *
         keypoints[tid].octave = octave;
         keypoints[tid].size   = size;
 }
+
+__kernel void squareVector2(
+    const image2d_t image,
+    int npoints,
+    int minBorderX,
+    int minBorderY,
+    int octave,
+    int size,
+    __global char* keypoints, int dst_step, int dst_offset, int dst_rows, int dst_cols) {
+    int tid = get_global_id(0);
+        if (tid >= npoints) {
+            return;
+        }
+        __global key_point_t *dstf = (__global key_point_t *)keypoints;
+        dstf[tid].class_id    = npoints;
+        dstf[tid].pt.x        += minBorderX;
+        dstf[tid].pt.y        += minBorderY;
+        dstf[tid].octave      = octave;
+        dstf[tid].size        = size;
+}
