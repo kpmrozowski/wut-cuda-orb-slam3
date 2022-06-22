@@ -1,3 +1,5 @@
+#include "OpenCL/Manager.hpp"
+#include <opencv2/core/mat.hpp>
 #include <boost/algorithm/cxx11/all_of.hpp>
 #include <boost/compute.hpp>
 #include <boost/compute/types/struct.hpp>
@@ -6,7 +8,6 @@
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <OpenCL/Manager.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <span>
 
@@ -78,27 +79,32 @@ TEST(list_cv_ocl_devices, OpenCLTest)
     }
 }
 
-template<typename T>
+template<typename T, int CV_TYPE>
 class CvVector
 {
-    size_t m_size;
     std::vector<T> m_vec;
     cv::Mat m_mat_before;
+    size_t m_size;
     cv::UMat m_umat;
     std::optional<cv::Mat> m_mat = std::nullopt;
     bool synchronized = true;
 
 public:
-    CvVector(std::vector<T> vec)
+    explicit CvVector(std::vector<T>&& vec)
      : m_vec(vec)
-     , m_size(vec.size())
-     , m_mat_before(1, vec.size() * sizeof(key_point_t), CV_8SC1, vec.data())
+     , m_size(m_vec.size())
+     , m_mat_before(1, m_vec.size() * sizeof(T), CV_TYPE, m_vec.data())
     {
+    }
+
+    [[nodiscard]] constexpr size_t size()
+    {
+        return m_size;
     }
 
     [[nodiscard]] std::span<T> before()
     {
-        return std::span<key_point_t>{reinterpret_cast<key_point_t*>(m_mat_before.data), m_size};
+        return std::span<T>{reinterpret_cast<T*>(m_mat_before.data), m_size};
     }
 
     [[nodiscard]] cv::ocl::KernelArg kernelArg()
@@ -108,14 +114,14 @@ public:
         return cv::ocl::KernelArg::ReadWrite(m_umat);
     }
 
-    std::span<key_point_t> result()
+    std::span<T> result()
     {
         if (not m_mat.has_value()) {
             m_mat = m_umat.getMat(cv::ACCESS_READ);
-            return std::span<key_point_t>{reinterpret_cast<key_point_t*>(m_mat_before.data), m_size};
+            return std::span<T>{reinterpret_cast<T*>(m_mat_before.data), m_size};
         }
         return {
-            reinterpret_cast<key_point_t*>(m_mat.value().data),
+            reinterpret_cast<T*>(m_mat.value().data),
             m_size
         };
     }
@@ -149,29 +155,35 @@ TEST(runKeyPointsKernel2, OpenCLTest)
     } else {
         std::cout << "image exists\n";
     }
-    cv::Mat mat = cv::imread(filename, cv::IMREAD_GRAYSCALE);
-    mat.convertTo(mat, CV_32F, 1.0 / 255);
-    cv::UMat umat_src  = mat.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-    cv::UMat umat_dest = cv::UMat(mat.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-    cv::ocl::Image2D image{umat_src};
+    cv::Mat image = cv::imread(filename, cv::IMREAD_GRAYSCALE);
+    image.convertTo(image, CV_32F, 1.0 / 255);
+    cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    cv::UMat umat_dest = cv::UMat(image.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    cv::ocl::Image2D image2d{umat_src};
 
-    std::vector<key_point_t> keyPoints{
+    CvVector<key_point_t, CV_8SC1> cvKeyPoints{{
             makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
-            makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),};
-    CvVector<key_point_t> cvKeyPoints{keyPoints};
+            makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
 
     auto start = manager.cv_run(
         Program::TestProgram,
         "squareVector2",
         5,
         true,
-        /*image2d_t*/ image, /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5, cvKeyPoints.kernelArg());
+        /*image2d_t*/ image2d,
+        /*npoints*/ 5,
+        /*minBorderX*/ 20,
+        /*minBorderY*/ 20,
+        /*octave*/ 0,
+        /*size*/ 5,
+        /*keypoints*/ cvKeyPoints.kernelArg());
 
     ASSERT_TRUE(start);
 
-    for (const auto &[lhs, rhs] : boost::combine(keyPoints, cvKeyPoints.result()))
+    for (const auto &[lhs, rhs] : boost::combine(cvKeyPoints.before(), cvKeyPoints.result()))
     {
         ASSERT_EQ(5, rhs.class_id);
+        std::cout << 5 << " == " << rhs.class_id << "\n";
     }
 }
 
@@ -243,4 +255,49 @@ TEST(runSimpleOpenGLProgram, OpenCLTest)
     for (const auto &[lhs, rhs] : boost::combine(values, values_out)) {
         ASSERT_EQ(lhs.class_id * 5, rhs.class_id);
     }
+}
+
+TEST(runCalcOrbKernel, OpenCLTest)
+{
+    using ORB_SLAM3::opencl::Program;
+
+    auto &manager = ORB_SLAM3::opencl::Manager::the();
+    auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
+    if (not std::filesystem::is_regular_file(filename)) {
+        throw std::runtime_error("image does not exist");
+    } else {
+        std::cout << "image exists\n";
+    }
+    cv::Mat image = cv::imread(filename, cv::IMREAD_GRAYSCALE);
+    image.convertTo(image, CV_32F, 1.0 / 255);
+    cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    cv::ocl::Image2D image2d{umat_src};
+
+    CvVector<key_point_t, CV_8SC1> cvKeyPoints{{
+            makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
+            makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
+
+    CvVector<unsigned int, CV_8UC1> cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
+
+    puts("ok\n");
+
+    auto start = manager.cv_run(
+        Program::OrbKernel,
+        32 * cvKeyPoints.size(),
+        32,
+        true,
+        /*image2d_t */ image2d,
+        /*char* */ cvKeyPoints.kernelArg(),
+        /*image2d_t */ cvDescriptors.kernelArg());
+
+    ASSERT_TRUE(start);
+
+    std::cout << "cvDescriptors = [\n";
+    for (int32_t i = 0; i < cvKeyPoints.size(); ++i)
+    {
+        for (int32_t j = 0; j < 32; ++j)
+            std::cout << cvDescriptors.result()[j + 32 * i] << ", ";
+        std::cout << "\n";
+    }
+    std::cout << "]\n";
 }

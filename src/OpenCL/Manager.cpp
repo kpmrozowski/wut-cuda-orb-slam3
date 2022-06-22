@@ -45,9 +45,9 @@ Manager::Manager() :
     m_queue(m_context, m_device),
     m_workGroupSize(m_device.maxWorkGroupSize()),
     m_programs{
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0", m_errorMsg),
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0", m_errorMsg),
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0", m_errorMsg)
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg)
     }
 {
 }

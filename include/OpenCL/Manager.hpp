@@ -1,7 +1,10 @@
 #include <boost/compute.hpp>
+#include <algorithm>
 #include <opencv2/core/ocl.hpp>
 #include <boost/compute.hpp>
 #include <concepts>
+#include <stdexcept>
+#include <string>
 
 namespace ORB_SLAM3::opencl {
 
@@ -26,13 +29,38 @@ concept Boolean =
     a != b2;  requires std::is_convertible_v<decltype(a != b2), bool>;
   };
 
-enum class Program : size_t
+using namespace std::literals::string_view_literals;
+enum class Program : uint8_t
 {
     TestProgram = 0,
     AngleKernel = 1,
     OrbKernel   = 2,
     Count       = 3,
 };
+
+template  <typename Key, typename Value, std::size_t Size>
+struct Map {
+    using Node = std::pair<Key, Value>;
+    std::array<Node, Size> data;
+
+    constexpr Value at(const Key &key) const {
+        const auto itr = std::find_if(data.begin(), data.end(),
+            [&key](const Node &v) { return v.first == key; });
+        if (itr != data.end()) {
+            return itr->second;
+        } else {
+            throw std::range_error("Not found");
+        }
+    }
+};
+
+static constexpr auto g_kernels =
+    Map<Program, std::string_view, 3>{{
+        std::array<std::pair<Program, std::string_view>, 3>{{
+            {Program::TestProgram, /*"squareVector"sv, */"squareVector2"sv},
+            {Program::AngleKernel, /*"IC_Angle_kernel"sv, */"addBorder_kernel"sv},
+            {Program::OrbKernel,   "calcOrb_kernel"sv},
+}}}};
 
 class Manager
 {
@@ -85,15 +113,29 @@ class Manager
         return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
     };
 
+    template<typename... TArgs>
+    auto cv_run(Program programId, std::size_t global_work_size, bool sync, TArgs &&...args)
+    {
+        cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
+        kernel.args(args...);
+        return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
+    };
+
     template<typename B, typename... TArgs>
     requires Boolean<B>
     auto cv_run(Program programId, const std::string &name, std::size_t global_work_size, std::size_t  local_work_group, B sync, TArgs &&...args)
     {
         cv::ocl::Kernel kernel(name.data(),  cv_program(programId));
         kernel.args(args...);
-        // czy na pewno tutaj powinny byc ampersanty?
-        // tak
-        // wczesniej byl blad, ze jest zla liczba argumentow, a teraz zla liczba watkow w warpie...
+        return kernel.run(1, &global_work_size, &local_work_group, sync, m_queue);
+    };
+
+    template<typename B, typename... TArgs>
+    requires Boolean<B>
+    auto cv_run(Program programId, std::size_t global_work_size, std::size_t  local_work_group, B sync, TArgs &&...args)
+    {
+        cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
+        kernel.args(args...);
         return kernel.run(1, &global_work_size, &local_work_group, sync, m_queue);
     };
 
