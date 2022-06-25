@@ -187,15 +187,16 @@ namespace ORB_SLAM3 {
         //Read camera model
         string cameraModel = readParameter<string>(fSettings,"Camera.type",found);
 
+        //Read intrinsic parameters
+        float fx = readParameter<float>(fSettings,"Camera1.fx",found);
+        float fy = readParameter<float>(fSettings,"Camera1.fy",found);
+        float cx = readParameter<float>(fSettings,"Camera1.cx",found);
+        float cy = readParameter<float>(fSettings,"Camera1.cy",found);
+
         vector<float> vCalibration;
         if (cameraModel == "PinHole") {
             cameraType_ = PinHole;
-
-            //Read intrinsic parameters
-            float fx = readParameter<float>(fSettings,"Camera1.fx",found);
-            float fy = readParameter<float>(fSettings,"Camera1.fy",found);
-            float cx = readParameter<float>(fSettings,"Camera1.cx",found);
-            float cy = readParameter<float>(fSettings,"Camera1.cy",found);
+            bNeedToRectify_ = true;
 
             vCalibration = {fx, fy, cx, cy};
 
@@ -227,12 +228,6 @@ namespace ORB_SLAM3 {
         else if(cameraModel == "Rectified"){
             cameraType_ = Rectified;
 
-            //Read intrinsic parameters
-            float fx = readParameter<float>(fSettings,"Camera1.fx",found);
-            float fy = readParameter<float>(fSettings,"Camera1.fy",found);
-            float cx = readParameter<float>(fSettings,"Camera1.cx",found);
-            float cy = readParameter<float>(fSettings,"Camera1.cy",found);
-
             vCalibration = {fx, fy, cx, cy};
 
             calibration1_ = new Pinhole(vCalibration);
@@ -244,11 +239,6 @@ namespace ORB_SLAM3 {
             cameraType_ = KannalaBrandt;
 
             //Read intrinsic parameters
-            float fx = readParameter<float>(fSettings,"Camera1.fx",found);
-            float fy = readParameter<float>(fSettings,"Camera1.fy",found);
-            float cx = readParameter<float>(fSettings,"Camera1.cx",found);
-            float cy = readParameter<float>(fSettings,"Camera1.cy",found);
-
             float k0 = readParameter<float>(fSettings,"Camera1.k1",found);
             float k1 = readParameter<float>(fSettings,"Camera1.k2",found);
             float k2 = readParameter<float>(fSettings,"Camera1.k3",found);
@@ -276,20 +266,18 @@ namespace ORB_SLAM3 {
     void Settings::readCamera2(cv::FileStorage &fSettings) {
         bool found;
         vector<float> vCalibration;
+
+        //Read intrinsic parameters
+        float fx = readParameter<float>(fSettings,"Camera2.fx",found);
+        float fy = readParameter<float>(fSettings,"Camera2.fy",found);
+        float cx = readParameter<float>(fSettings,"Camera2.cx",found);
+        float cy = readParameter<float>(fSettings,"Camera2.cy",found);
+
         if (cameraType_ == PinHole) {
             bNeedToRectify_ = true;
 
-            //Read intrinsic parameters
-            float fx = readParameter<float>(fSettings,"Camera2.fx",found);
-            float fy = readParameter<float>(fSettings,"Camera2.fy",found);
-            float cx = readParameter<float>(fSettings,"Camera2.cx",found);
-            float cy = readParameter<float>(fSettings,"Camera2.cy",found);
-
-
             vCalibration = {fx, fy, cx, cy};
-
             calibration2_ = new Pinhole(vCalibration);
-            originalCalib2_ = new Pinhole(vCalibration);
 
             //Check if it is a distorted PinHole
             readParameter<float>(fSettings,"Camera2.k1",found,false);
@@ -308,23 +296,21 @@ namespace ORB_SLAM3 {
                 vPinHoleDistorsion2_[3] = readParameter<float>(fSettings,"Camera2.p2",found);
             }
         }
-        else if(cameraType_ == KannalaBrandt){
+        else if(cameraType_ == Rectified) {
+            vCalibration = {fx, fy, cx, cy};
+            calibration2_ = new Pinhole(vCalibration);
+            //Rectified images are assumed to be ideal PinHole images (no distortion)
+        }
+        else if(cameraType_ == KannalaBrandt)
+        {
             //Read intrinsic parameters
-            float fx = readParameter<float>(fSettings,"Camera2.fx",found);
-            float fy = readParameter<float>(fSettings,"Camera2.fy",found);
-            float cx = readParameter<float>(fSettings,"Camera2.cx",found);
-            float cy = readParameter<float>(fSettings,"Camera2.cy",found);
-
             float k0 = readParameter<float>(fSettings,"Camera1.k1",found);
             float k1 = readParameter<float>(fSettings,"Camera1.k2",found);
             float k2 = readParameter<float>(fSettings,"Camera1.k3",found);
             float k3 = readParameter<float>(fSettings,"Camera1.k4",found);
 
-
             vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
-
             calibration2_ = new KannalaBrandt8(vCalibration);
-            originalCalib2_ = new KannalaBrandt8(vCalibration);
 
             int colBegin = readParameter<int>(fSettings,"Camera2.overlappingBegin",found);
             int colEnd = readParameter<int>(fSettings,"Camera2.overlappingEnd",found);
@@ -332,7 +318,6 @@ namespace ORB_SLAM3 {
 
             static_cast<KannalaBrandt8*>(calibration2_)->mvLappingArea = vOverlapping;
         }
-
         //Load stereo extrinsic calibration
         if(cameraType_ == Rectified){
             b_ = readParameter<float>(fSettings,"Stereo.b",found);
@@ -347,10 +332,8 @@ namespace ORB_SLAM3 {
             b_ = Tlr_.translation().norm();
             bf_ = b_ * calibration1_->getParameter(0);
         }
-
+        originalCalib2_ = new KannalaBrandt8(vCalibration);
         thDepth_ = readParameter<float>(fSettings,"Stereo.ThDepth",found);
-
-
     }
 
     void Settings::readImageInfo(cv::FileStorage &fSettings) {

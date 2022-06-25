@@ -12,7 +12,8 @@ template <class B>
 concept Boolean =
   std::movable<std::remove_cvref_t<B>> &&
   requires(const std::remove_reference_t<B>& b1,
-           const std::remove_reference_t<B>& b2, const bool a) {
+           const std::remove_reference_t<B>& b2, const bool a)
+{
     requires std::convertible_to<const std::remove_reference_t<B>&, bool>;
     !b1;      requires std::is_convertible_v<decltype(!b1), bool>;
     b1 && a;  requires std::is_same_v<decltype(b1 && a), bool>;
@@ -27,7 +28,13 @@ concept Boolean =
     b1 != b2; requires std::is_convertible_v<decltype(b1 != b2), bool>;
     b1 != a;  requires std::is_convertible_v<decltype(b1 != a), bool>;
     a != b2;  requires std::is_convertible_v<decltype(a != b2), bool>;
-  };
+};
+
+template<typename T>
+concept Hashable = requires(T a)
+{
+    { std::hash<T>{}(a) } -> std::convertible_to<std::size_t>;
+};
 
 using namespace std::literals::string_view_literals;
 enum class Program : uint8_t
@@ -135,13 +142,11 @@ class Manager
         return kernel.run(1, &global_work_size, &local_work_group, sync, m_queue);
     };
 
-    template<typename B, typename... TArgs>
+    template<typename B, Hashable S, typename... TArgs>
     requires Boolean<B>
-    auto cv_run(Program programId, std::size_t global_work_size, std::size_t  local_work_group, B sync, TArgs &&...args)
+    auto cv_run(Program programId, std::size_t global_work_size, std::size_t local_work_group, B sync, TArgs &&...args)
     {
-        cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
-        kernel.args(args...);
-        return kernel.run(1, &global_work_size, &local_work_group, sync, m_queue);
+        return cv_run(programId, g_kernels.at(programId).data(), global_work_size, local_work_group, sync, args...);
     };
 
     template<typename... TArgs>

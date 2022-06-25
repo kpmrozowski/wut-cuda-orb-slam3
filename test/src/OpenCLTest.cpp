@@ -314,7 +314,7 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
             makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
 
     CvVector<unsigned int, CV_8UC1> cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
-    cv::ocl::clCreateBuffer(manager.cv_context(), CL_MEM_READ_WRITE, size_in_bytes, host_ptr, errcode_ret);
+    // cv::ocl::clCreateBuffer(manager.cv_context(), CL_MEM_READ_WRITE, size_in_bytes, host_ptr, errcode_ret);
 
     auto start = manager.cv_run(
         Program::OrbKernel,
