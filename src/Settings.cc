@@ -227,12 +227,8 @@ namespace ORB_SLAM3 {
         }
         else if(cameraModel == "Rectified"){
             cameraType_ = Rectified;
-
             vCalibration = {fx, fy, cx, cy};
-
             calibration1_ = new Pinhole(vCalibration);
-            originalCalib1_ = new Pinhole(vCalibration);
-
             //Rectified images are assumed to be ideal PinHole images (no distortion)
         }
         else if(cameraModel == "KannalaBrandt8"){
@@ -248,6 +244,7 @@ namespace ORB_SLAM3 {
 
             calibration1_ = new KannalaBrandt8(vCalibration);
             originalCalib1_ = new KannalaBrandt8(vCalibration);
+            originalCalib1_ = new Pinhole(vCalibration);
 
             if(sensor_ == System::STEREO || sensor_ == System::IMU_STEREO){
                 int colBegin = readParameter<int>(fSettings,"Camera1.overlappingBegin",found);
@@ -278,6 +275,7 @@ namespace ORB_SLAM3 {
 
             vCalibration = {fx, fy, cx, cy};
             calibration2_ = new Pinhole(vCalibration);
+            originalCalib2_ = new Pinhole(vCalibration);
 
             //Check if it is a distorted PinHole
             readParameter<float>(fSettings,"Camera2.k1",found,false);
@@ -299,6 +297,7 @@ namespace ORB_SLAM3 {
         else if(cameraType_ == Rectified) {
             vCalibration = {fx, fy, cx, cy};
             calibration2_ = new Pinhole(vCalibration);
+            originalCalib2_ = new Pinhole(vCalibration);
             //Rectified images are assumed to be ideal PinHole images (no distortion)
         }
         else if(cameraType_ == KannalaBrandt)
@@ -311,6 +310,7 @@ namespace ORB_SLAM3 {
 
             vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
             calibration2_ = new KannalaBrandt8(vCalibration);
+            originalCalib2_ = new KannalaBrandt8(vCalibration);
 
             int colBegin = readParameter<int>(fSettings,"Camera2.overlappingBegin",found);
             int colEnd = readParameter<int>(fSettings,"Camera2.overlappingEnd",found);
@@ -332,7 +332,6 @@ namespace ORB_SLAM3 {
             b_ = Tlr_.translation().norm();
             bf_ = b_ * calibration1_->getParameter(0);
         }
-        originalCalib2_ = new KannalaBrandt8(vCalibration);
         thDepth_ = readParameter<float>(fSettings,"Stereo.ThDepth",found);
     }
 
