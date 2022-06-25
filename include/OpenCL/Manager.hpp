@@ -68,6 +68,16 @@ static constexpr auto g_kernels =
             {Program::TileCalcKeypointsKernel, "tileCalcKeypoints_kernel"sv},
 }}}};
 
+class SyncBool
+{
+    bool m_sync = true;
+
+  public:
+    SyncBool() = delete;
+    SyncBool(bool b) : m_sync(b) {}
+    constexpr bool sync() noexcept { return m_sync; }
+};
+
 class Manager
 {
     cv::ocl::Context m_context;
@@ -116,40 +126,38 @@ class Manager
         return m_programs[static_cast<size_t>(program)];
     }
 
-    template<typename B, StringLike S, typename... TArgs>
-    requires Boolean<B>
-    auto cv_run(Program programId, const S &name, std::size_t global_work_size, B sync, TArgs &&...args)
+    template<StringLike S, typename... TArgs>
+    auto cv_run(Program programId, const S &name, std::size_t global_work_size, SyncBool syncBool, TArgs &&...args)
     {
         std::string kernelName{name};
         cv::ocl::Kernel kernel(kernelName.data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
+        return kernel.run(1, &global_work_size, &m_workGroupSize, syncBool.sync(), m_queue);
     };
 
-    template<typename B, typename... TArgs>
-    requires Boolean<B>
-    auto cv_run(Program programId, std::size_t global_work_size, B sync, TArgs &&...args)
+    template<typename... TArgs>
+    auto cv_run(Program programId, std::size_t global_work_size, SyncBool syncBool, TArgs &&...args)
     {
         cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
+        return kernel.run(1, &global_work_size, &m_workGroupSize, syncBool.sync(), m_queue);
     };
 
-    template<typename B, StringLike S, typename... TArgs>
-    requires Boolean<B>
-    auto cv_run(Program programId, const S &name, std::size_t global_work_size, std::size_t local_work_group, B sync, TArgs &&...args)
+    template<StringLike S, typename... TArgs>
+    auto cv_run(Program programId, const S &name, std::size_t global_work_size, std::size_t local_work_group, SyncBool syncBool, TArgs &&...args)
     {
         std::string kernelName{name};
         cv::ocl::Kernel kernel(kernelName.data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &local_work_group, sync, m_queue);
+        return kernel.run(1, &global_work_size, &local_work_group, syncBool.sync(), m_queue);
     };
 
-    template<typename B, typename... TArgs>
-    requires Boolean<B>
-    auto cv_run(Program programId, std::size_t global_work_size, std::size_t local_work_group, B sync, TArgs &&...args)
+    template<typename... TArgs>
+    auto cv_run(Program programId, std::size_t global_work_size, std::size_t local_work_group, SyncBool syncBool, TArgs &&...args)
     {
-        return cv_run(programId, g_kernels.at(programId).data(), global_work_size, local_work_group, sync, args...);
+        cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
+        kernel.args(args...);
+        return kernel.run(1, &global_work_size, &local_work_group, syncBool.sync(), m_queue);
     };
 
     template<typename... TArgs>

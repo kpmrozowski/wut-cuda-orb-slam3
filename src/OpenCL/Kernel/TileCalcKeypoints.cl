@@ -9,11 +9,17 @@ const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
 
 __kernel void tileCalcKeypoints_kernel(
     __read_only const image2d_t image,
-    __global char* keypoints,   int kStep, int kOffset, int kRows, int kCols,
-    __global int* descriptors, int dStep, int dOffset, int dRows, int dCols)
+    __global short2* kpLoc,   int klStep, int klOffset, int klRows, int klCols,
+    __global float* kpScore, int ksStep, int ksOffset, int ksRows, int ksCols,
+    unsigned int maxKeypoints,
+    unsigned int highThreshold,
+    unsigned int lowThreshold,
+    __global int* scoreMat, int sStep, int sOffset, int sRows, int sCols,
+    __global unsigned int* counter_ptr
+    )
 {
-    const size_t id = get_global_id(0) / get_local_size(0);
-    const size_t tid = get_global_id(0) % get_local_size(0);
-    __global key_point_t *kpt = (__global key_point_t *)keypoints;
-    descriptors[tid + id * get_local_size(0)] = (uchar)(0);
+    // const size_t id = get_global_id(0) / get_local_size(0);
+    // const size_t tid = get_global_id(0) % get_local_size(0);
+    // __global key_point_t *kpt = (__global key_point_t *)keypoints;
+    // descriptors[tid + id * get_local_size(0)] = (uchar)(0);
 }
