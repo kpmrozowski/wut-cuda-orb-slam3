@@ -93,6 +93,7 @@ find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(OpenCL REQUIRED)
 find_package(fmt REQUIRED)
+find_package(spdlog REQUIRED)
 
 include(FetchContent)
 #fetchcontent_declare(
@@ -106,8 +107,6 @@ FetchContent_Declare(
         GIT_TAG "4d6a463bca51bc316f9b565edd94e82388206093"
 )
 # find_package(realsense2)
-find_package(fmt REQUIRED)
-find_package(spdlog REQUIRED)
 
 include_directories(
 ${PROJECT_SOURCE_DIR}

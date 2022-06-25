@@ -8,8 +8,11 @@
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <opencv2/core/ocl.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <span>
+
+using ORB_SLAM3::opencl::Program;
 
 typedef struct
 {
@@ -107,6 +110,13 @@ public:
         return std::span<T>{reinterpret_cast<T*>(m_mat_before.data), m_size};
     }
 
+    [[nodiscard]] cv::UMat& umat()
+    {
+        synchronized = false;
+        m_umat = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+        return m_umat;
+    }
+
     [[nodiscard]] cv::ocl::KernelArg kernelArg()
     {
         synchronized = false;
@@ -145,18 +155,23 @@ std::span<key_point_t> umat2vec(cv::UMat& umat, size_t size)
 }
 */
 
-TEST(runKeyPointsKernel2, OpenCLTest)
+cv::Mat& load_sample_image()
 {
-    using ORB_SLAM3::opencl::Program;
-    auto &manager = ORB_SLAM3::opencl::Manager::the();
     auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
     if (not std::filesystem::is_regular_file(filename)) {
         throw std::runtime_error("image does not exist");
     } else {
         std::cout << "image exists\n";
     }
-    cv::Mat image = cv::imread(filename, cv::IMREAD_GRAYSCALE);
+    static cv::Mat image = cv::imread(filename, cv::IMREAD_GRAYSCALE);
     image.convertTo(image, CV_32F, 1.0 / 255);
+    return image;
+}
+
+TEST(runKeyPointsKernel2, OpenCLTest)
+{
+    auto &manager = ORB_SLAM3::opencl::Manager::the();
+    cv::Mat& image = load_sample_image();
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::UMat umat_dest = cv::UMat(image.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
@@ -187,19 +202,14 @@ TEST(runKeyPointsKernel2, OpenCLTest)
     }
 }
 
-
 TEST(runKeyPointsKernel, OpenCLTest)
 {
-    using ORB_SLAM3::opencl::Program;
-
     auto &manager = ORB_SLAM3::opencl::Manager::the();
 
-    auto mat1      = cv::imread("/home/ego/more/projects/wut-cuda-orb-slam3/datasets/MH01/mav0/cam0/data/"
-                                     "1403636579763555584.png", cv::IMREAD_GRAYSCALE);
-    mat1.convertTo(mat1, CV_32F, 1.0 / 255);
-    auto umat_src  = mat1.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-    auto umat_dest = cv::UMat(mat1.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-    auto image = cv::ocl::Image2D(umat_src);
+    cv::Mat& image = load_sample_image();
+    cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    auto umat_dest = cv::UMat(image.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    cv::ocl::Image2D image2d{umat_src};
     //    auto cl_buffer = static_cast<cl_mem>(umat_src.handle(cv::ACCESS_RW));
 
     std::array<key_point_t, 5> keyPoints{
@@ -211,7 +221,7 @@ TEST(runKeyPointsKernel, OpenCLTest)
     boost::compute::copy(keyPoints.begin(), keyPoints.end(), gpuKeyPoints.begin());
 
     // __kernel void addBorder_kernel(__global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
-    auto start = manager.cv_run(Program::TestProgram, "squareVector", 5, true, image, gpuKeyPoints.get_buffer().get(),
+    auto start = manager.cv_run(Program::TestProgram, "squareVector", 5, true, image2d, gpuKeyPoints.get_buffer().get(),
                              /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
 
     ASSERT_TRUE(start);
@@ -226,7 +236,6 @@ TEST(runKeyPointsKernel, OpenCLTest)
 
 TEST(runSimpleOpenGLProgram, OpenCLTest)
 {
-    using ORB_SLAM3::opencl::Program;
     namespace compute = boost::compute;
 
     //    std::string source = BOOST_COMPUTE_STRINGIZE_SOURCE(
@@ -259,16 +268,8 @@ TEST(runSimpleOpenGLProgram, OpenCLTest)
 
 TEST(runCalcOrbKernel, OpenCLTest)
 {
-    using ORB_SLAM3::opencl::Program;
-
     auto &manager = ORB_SLAM3::opencl::Manager::the();
-    auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
-    if (not std::filesystem::is_regular_file(filename)) {
-        throw std::runtime_error("image does not exist");
-    } else {
-        std::cout << "image exists\n";
-    }
-    cv::Mat image = cv::imread(filename, cv::IMREAD_GRAYSCALE);
+    cv::Mat& image = load_sample_image();
     image.convertTo(image, CV_32F, 1.0 / 255);
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
@@ -279,7 +280,41 @@ TEST(runCalcOrbKernel, OpenCLTest)
 
     CvVector<unsigned int, CV_8UC1> cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
 
-    puts("ok\n");
+    auto start = manager.cv_run(
+        Program::OrbKernel,
+        32 * cvKeyPoints.size(),
+        32,
+        true,
+        /*image2d_t */ image2d,
+        /*char* */ cvKeyPoints.umat(),
+        /*image2d_t */ cvDescriptors.umat());
+
+    ASSERT_TRUE(start);
+
+    std::cout << "cvDescriptors = [\n";
+    for (int32_t i = 0; i < cvKeyPoints.size(); ++i)
+    {
+        for (int32_t j = 0; j < 32; ++j)
+            std::cout << cvDescriptors.result()[j + 32 * i] << ", ";
+        std::cout << "\n";
+    }
+    std::cout << "]\n";
+}
+
+TEST(runTileCalcKeypointsKernel, OpenCLTest)
+{
+    auto &manager = ORB_SLAM3::opencl::Manager::the();
+    cv::Mat& image = load_sample_image();
+    image.convertTo(image, CV_32F, 1.0 / 255);
+    cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    cv::ocl::Image2D image2d{umat_src};
+
+    CvVector<key_point_t, CV_8SC1> cvKeyPoints{{
+            makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
+            makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
+
+    CvVector<unsigned int, CV_8UC1> cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
+    cv::ocl::clCreateBuffer(manager.cv_context(), CL_MEM_READ_WRITE, size_in_bytes, host_ptr, errcode_ret);
 
     auto start = manager.cv_run(
         Program::OrbKernel,
@@ -289,7 +324,7 @@ TEST(runCalcOrbKernel, OpenCLTest)
         /*image2d_t */ image2d,
         /*char* */ cvKeyPoints.kernelArg(),
         /*image2d_t */ cvDescriptors.kernelArg());
-
+// image, kpLoc, kpScore, maxKeypoints, highThreshold, lowThreshold, scoreMat, counter_ptr
     ASSERT_TRUE(start);
 
     std::cout << "cvDescriptors = [\n";

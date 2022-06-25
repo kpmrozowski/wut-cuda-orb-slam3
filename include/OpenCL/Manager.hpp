@@ -74,6 +74,11 @@ class Manager
   public:
     Manager();
 
+    [[nodiscard]] constexpr cv::ocl::Context &cv_context()
+    {
+        return m_context;
+    }
+
     [[nodiscard]] boost::compute::device device()
     {
         return boost::compute::device{static_cast<cl_device_id>(m_device.ptr())};

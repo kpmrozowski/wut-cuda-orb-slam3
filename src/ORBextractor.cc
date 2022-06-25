@@ -53,7 +53,7 @@
 
 
 #include <opencv2/core/core.hpp>
-#include <opencv2/core/ocl.hpp>
+// #include <opencv2/core/ocl.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -799,7 +799,7 @@ namespace ORB_SLAM3
 
     void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoints)
     {
-        cv::UMat uMat;
+        // cv::UMat uMat;
         allKeypoints.resize(nlevels);
         const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;
