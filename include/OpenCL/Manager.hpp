@@ -30,11 +30,8 @@ concept Boolean =
     a != b2;  requires std::is_convertible_v<decltype(a != b2), bool>;
 };
 
-template<typename T>
-concept Hashable = requires(T a)
-{
-    { std::hash<T>{}(a) } -> std::convertible_to<std::size_t>;
-};
+template<class T>
+concept StringLike = std::is_convertible_v<T, std::string_view>;
 
 using namespace std::literals::string_view_literals;
 enum class Program : uint8_t
@@ -42,7 +39,8 @@ enum class Program : uint8_t
     TestProgram = 0,
     AngleKernel = 1,
     OrbKernel   = 2,
-    Count       = 3,
+    TileCalcKeypointsKernel   = 3,
+    Count       = 4,
 };
 
 template  <typename Key, typename Value, std::size_t Size>
@@ -62,11 +60,12 @@ struct Map {
 };
 
 static constexpr auto g_kernels =
-    Map<Program, std::string_view, 3>{{
-        std::array<std::pair<Program, std::string_view>, 3>{{
-            {Program::TestProgram, /*"squareVector"sv, */"squareVector2"sv},
+    Map<Program, std::string_view, 4>{{
+        std::array<std::pair<Program, std::string_view>, 4>{{
+            {Program::TestProgram, /*"squareVector"sv, */   "squareVector2"sv},
             {Program::AngleKernel, /*"IC_Angle_kernel"sv, */"addBorder_kernel"sv},
-            {Program::OrbKernel,   "calcOrb_kernel"sv},
+            {Program::OrbKernel,     "calcOrb_kernel"sv},
+            {Program::TileCalcKeypointsKernel, "tileCalcKeypoints_kernel"sv},
 }}}};
 
 class Manager
@@ -117,32 +116,36 @@ class Manager
         return m_programs[static_cast<size_t>(program)];
     }
 
-    template<typename... TArgs>
-    auto cv_run(Program programId, const std::string &name, std::size_t global_work_size, bool sync, TArgs &&...args)
+    template<typename B, StringLike S, typename... TArgs>
+    requires Boolean<B>
+    auto cv_run(Program programId, const S &name, std::size_t global_work_size, B sync, TArgs &&...args)
     {
-        cv::ocl::Kernel kernel(name.data(),  cv_program(programId));
-        kernel.args(args...);
-        return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
-    };
-
-    template<typename... TArgs>
-    auto cv_run(Program programId, std::size_t global_work_size, bool sync, TArgs &&...args)
-    {
-        cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
+        std::string kernelName{name};
+        cv::ocl::Kernel kernel(kernelName.data(),  cv_program(programId));
         kernel.args(args...);
         return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
     };
 
     template<typename B, typename... TArgs>
     requires Boolean<B>
-    auto cv_run(Program programId, const std::string &name, std::size_t global_work_size, std::size_t  local_work_group, B sync, TArgs &&...args)
+    auto cv_run(Program programId, std::size_t global_work_size, B sync, TArgs &&...args)
     {
-        cv::ocl::Kernel kernel(name.data(),  cv_program(programId));
+        cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
+        kernel.args(args...);
+        return kernel.run(1, &global_work_size, &m_workGroupSize, sync, m_queue);
+    };
+
+    template<typename B, StringLike S, typename... TArgs>
+    requires Boolean<B>
+    auto cv_run(Program programId, const S &name, std::size_t global_work_size, std::size_t local_work_group, B sync, TArgs &&...args)
+    {
+        std::string kernelName{name};
+        cv::ocl::Kernel kernel(kernelName.data(),  cv_program(programId));
         kernel.args(args...);
         return kernel.run(1, &global_work_size, &local_work_group, sync, m_queue);
     };
 
-    template<typename B, Hashable S, typename... TArgs>
+    template<typename B, typename... TArgs>
     requires Boolean<B>
     auto cv_run(Program programId, std::size_t global_work_size, std::size_t local_work_group, B sync, TArgs &&...args)
     {
