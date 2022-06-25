@@ -82,7 +82,7 @@ TEST(list_cv_ocl_devices, OpenCLTest)
     }
 }
 
-template<typename T, int CV_TYPE>
+template<typename T, int CV_TYPE = CV_8SC1>
 class CvVector
 {
     std::vector<T> m_vec;
@@ -157,7 +157,8 @@ std::span<key_point_t> umat2vec(cv::UMat& umat, size_t size)
 
 cv::Mat& load_sample_image()
 {
-    auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
+    // auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
+    auto filename = "/shm/datasets/Kitti/sequences/03/image_0/000000.png";
     if (not std::filesystem::is_regular_file(filename)) {
         throw std::runtime_error("image does not exist");
     } else {
@@ -176,7 +177,7 @@ TEST(runKeyPointsKernel2, OpenCLTest)
     cv::UMat umat_dest = cv::UMat(image.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
-    CvVector<key_point_t, CV_8SC1> cvKeyPoints{{
+    CvVector<key_point_t> cvKeyPoints{{
             makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
             makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
 
@@ -221,8 +222,19 @@ TEST(runKeyPointsKernel, OpenCLTest)
     boost::compute::copy(keyPoints.begin(), keyPoints.end(), gpuKeyPoints.begin());
 
     // __kernel void addBorder_kernel(__global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
-    auto start = manager.cv_run(Program::TestProgram, "squareVector", 5, true, image2d, gpuKeyPoints.get_buffer().get(),
-                             /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
+    auto start = manager.cv_run(
+        Program::TestProgram,
+        "squareVector",
+        5,
+        true,
+        image2d,
+        gpuKeyPoints.get_buffer().get(),
+        /*npoints*/ 5,
+        /*minBorderX*/ 20,
+        /*minBorderY*/ 20,
+        /*octave*/ 0,
+        /*size*/ 5
+    );
 
     ASSERT_TRUE(start);
 
@@ -255,8 +267,17 @@ TEST(runSimpleOpenGLProgram, OpenCLTest)
     compute::vector<key_point_t> gpuValues(256);
     compute::copy(values.begin(), values.end(), gpuValues.begin());
 
-    auto start = manager.run(Program::TestProgram, "squareVector", 256, gpuValues,
-                             /*npoints*/ 5, /*minBorderX*/ 20, /*minBorderY*/ 20, /*octave*/ 0, /*size*/ 5);
+    auto start = manager.run(
+        Program::TestProgram,
+        "squareVector",
+        256,
+        gpuValues,
+        /*npoints*/ 5,
+        /*minBorderX*/ 20,
+        /*minBorderY*/ 20,
+        /*octave*/ 0,
+        /*size*/ 5
+    );
     start.wait();
 
     compute::copy(gpuValues.begin(), gpuValues.end(), values_out.begin());
@@ -274,11 +295,11 @@ TEST(runCalcOrbKernel, OpenCLTest)
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
-    CvVector<key_point_t, CV_8SC1> cvKeyPoints{{
+    CvVector<key_point_t> cvKeyPoints{{
             makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
             makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
 
-    CvVector<unsigned int, CV_8UC1> cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
+    CvVector cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
 
     auto start = manager.cv_run(
         Program::OrbKernel,
@@ -301,6 +322,12 @@ TEST(runCalcOrbKernel, OpenCLTest)
     std::cout << "]\n";
 }
 
+struct short2
+{
+    short x;
+    short y;
+};
+
 TEST(runTileCalcKeypointsKernel, OpenCLTest)
 {
     auto &manager = ORB_SLAM3::opencl::Manager::the();
@@ -309,30 +336,62 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
-    CvVector<key_point_t, CV_8SC1> cvKeyPoints{{
-            makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
-            makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
-
-    CvVector<unsigned int, CV_8UC1> cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
-    // cv::ocl::clCreateBuffer(manager.cv_context(), CL_MEM_READ_WRITE, size_in_bytes, host_ptr, errcode_ret);
+    uint32_t maxKeypoints = 10'000;
+    struct {
+        size_t x = 12;
+        size_t y = 3;
+        size_t z = 1;
+    } dimGrid;
+    struct {
+        size_t x = 32;
+        size_t y = 8;
+        size_t z = 1;
+    } dimBlock;
+    CvVector kpLoc{std::vector<short2>(maxKeypoints)};
+    CvVector kpScore{std::vector<float>(maxKeypoints)};
+    uint32_t highThreshold = 20, lowThreshold = 7;
+    size_t scoreMat_rows = 343, scoreMat_cols = 1210;
+    CvVector scoreMat{std::vector<float>(scoreMat_rows * scoreMat_cols)};
+    CvVector counter_ptr{std::vector<uint32_t>(1)};
+    
+    std::cout << "\n################### BEFORE: ###################\n" <<
+        "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y << ", " << dimGrid.z <<
+        "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y << ", " << dimBlock.z <<
+        "\nimage: " << image.rows << ", " << image.cols << ", " <<
+        "\nimage.type: " << image.type() <<
+        "\nkpLoc: " << kpLoc.before()[0].x << ", " << kpLoc.before()[0].y << ", " << kpLoc.before()[1].x << ", " << kpLoc.before()[1].y <<
+        "\nkpScore: " << kpScore.before()[0] << ", " << kpScore.before()[1] <<
+        "\nmaxKeypoints: " << maxKeypoints <<
+        "\nThreshold: " << highThreshold << ", " << lowThreshold <<
+        "\nscoreMat: " << scoreMat_rows << ", " << scoreMat_cols <<
+        "\ncounter_ptr: " << counter_ptr.before()[0] << std::endl;
 
     auto start = manager.cv_run(
-        Program::OrbKernel,
-        32 * cvKeyPoints.size(),
-        32,
+        Program::TileCalcKeypointsKernel,
+        dimGrid.x * dimGrid.y * dimGrid.z,
+        dimBlock.x * dimBlock.y * dimBlock.z,
         true,
         /*image2d_t */ image2d,
-        /*char* */ cvKeyPoints.kernelArg(),
-        /*image2d_t */ cvDescriptors.kernelArg());
+        /*short2* */ kpLoc.kernelArg(),
+        /*float* */ kpScore.kernelArg(),
+        /*unsigned int */ maxKeypoints,
+        /*unsigned int */ highThreshold,
+        /*unsigned int */ lowThreshold,
+        /*int* */ scoreMat.kernelArg(),
+        /*unsigned int* */ counter_ptr.kernelArg()
+    );
 // image, kpLoc, kpScore, maxKeypoints, highThreshold, lowThreshold, scoreMat, counter_ptr
     ASSERT_TRUE(start);
 
-    std::cout << "cvDescriptors = [\n";
-    for (int32_t i = 0; i < cvKeyPoints.size(); ++i)
-    {
-        for (int32_t j = 0; j < 32; ++j)
-            std::cout << cvDescriptors.result()[j + 32 * i] << ", ";
-        std::cout << "\n";
-    }
-    std::cout << "]\n";
+    std::cout <<  "\n################### AFTER: ###################\n" <<
+        "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y << ", " << dimGrid.z <<
+        "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y << ", " << dimBlock.z <<
+        "\nimage: " << image.rows << ", " << image.cols << ", " <<
+        "\nimage.type: " << image.type() <<
+        "\nkpLoc: " << kpLoc.result()[0].x << ", " << kpLoc.result()[0].y << ", " << kpLoc.result()[1].x << ", " << kpLoc.result()[1].y <<
+        "\nkpScore: " << kpScore.result()[0] << ", " << kpScore.result()[1] <<
+        "\nmaxKeypoints: " << maxKeypoints <<
+        "\nThreshold: " << highThreshold << ", " << lowThreshold <<
+        "\nscoreMat: " << scoreMat_rows << ", " << scoreMat_cols <<
+        "\ncounter_ptr: " << counter_ptr.result()[0] << std::endl;
 }
