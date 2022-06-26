@@ -265,9 +265,6 @@ void calcFibbonacci(int n) {
 }
 
 __kernel void tileCalcKeypoints_kernel(
-    __private uint gridDimX,
-    __private uint blockDimX,
-    __private uint blockDimY,
     __read_only const image2d_t img,
     __private int imgRows,
     __private int imgCols,
@@ -278,17 +275,20 @@ __kernel void tileCalcKeypoints_kernel(
     __private uint lowThreshold,
     __global int* scoreMat, int sStep, int sOffset, int sRows, int sCols,
     __private uint scoreMatCols,
+    __global int* debugMat, int dStep, int dOffset, int dRows, int dCols,
     __global uint* counterPtr
     )
 {
     const size_t workGroupId = get_global_id(0) / get_local_size(0);
     const size_t threadId = get_global_id(0) % get_local_size(0);
+    const struct  { uint x;    uint y; }
+        gridDim = { get_num_groups(0), get_num_groups(1) };
     const struct   { uint x;    uint y; }
-        blockDim = { blockDimX, blockDimY };
+        blockDim = { get_local_size(0), get_local_size(1) };
     const struct   { uint x;                 uint y; }
-        blockIdx = { workGroupId % gridDimX, workGroupId / gridDimX };
+        blockIdx = { get_group_id(0), get_group_id(1) };
     const struct   { uint x;               uint y; }
-        threadIdx = { threadId % blockDimX, threadId / blockDimX };
+        threadIdx = { get_local_id(0), get_local_id(1) };
     const uint j = threadIdx.x + blockIdx.x * blockDim.x + 3;
     const uint i = (threadIdx.y + blockIdx.y * blockDim.y) * 4 + 3;
     const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
@@ -350,7 +350,7 @@ __kernel void tileCalcKeypoints_kernel(
     // barrieer
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
     if (hasKp) return;
-    if (tid == 0) {
+    if (get_global_id(0) == 0) {
         calcFibbonacci(30);
     }
 }
