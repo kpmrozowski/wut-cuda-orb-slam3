@@ -43,9 +43,9 @@ const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
 
 __kernel void calcOrb_kernel(
     __read_only const image2d_t image,
-    __global key_point_t* keypoints,   int kStep, int kOffset, int kRows, int kCols,
+    __global key_point_t* keypoints, int kStep, int kOffset, int kRows, int kCols,
     // __global key_point_t* keypoints, // tak jest zle (CL_INVALID_KERNEL_ARGS)
-    __global int* descriptors,   int dStep, int dOffset, int dRows, int dCols)
+    __global int* descriptors, int dStep, int dOffset, int dRows, int dCols)
     // __global int* descriptors) // a w tym przypadku tak jest dobrze (albo albo)
 {
     const size_t id = get_global_id(0) / get_local_size(0);
