@@ -1,13 +1,5 @@
 #include "OpenCL/Kernel/key_point.hpp"
 
-ushort2 make_ushort2(ushort x, ushort y)
-{
-    ushort2 res;
-    res.x = x;
-    res.y = y;
-    return res;
-}
-
 bool is_rhs_greater(Point3b lhs, Point3b rhs) {
     if (lhs.x < rhs.x) {
         return true;
@@ -50,7 +42,7 @@ __kernel void calcOrb_kernel(
 {
     const size_t id = get_global_id(0) / get_local_size(0);
     const size_t tid = get_global_id(0) % get_local_size(0);
-    ushort2 loc = make_ushort2(keypoints[id].pt.x, keypoints[id].pt.y);
+    ushort2 loc = (ushort2)(keypoints[id].pt.x, keypoints[id].pt.y);
     Point2i *pattern = (Point2i *)c_pattern + 16 * tid;
 
     const float factorPI = (float)(CV_PI/180.f);
