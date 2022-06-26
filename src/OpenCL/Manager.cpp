@@ -1,5 +1,8 @@
+#include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <OpenCL/Manager.hpp>
+#include <string>
 
 namespace ORB_SLAM3::opencl {
 
@@ -45,12 +48,41 @@ Manager::Manager() :
     m_queue(m_context, m_device),
     m_workGroupSize(m_device.maxWorkGroupSize()),
     m_programs{
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg),
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg),
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg),
-            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/TileCalcKeypoints.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg)
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::TestProgram]),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::AngleKernel]),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::OrbKernel]),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/TileCalcKeypoints.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::TileCalcKeypointsKernel])
     }
 {
+    bool success = true;
+    int failedCount = 0;
+    std::for_each(m_errorMsg.begin(), m_errorMsg.end(), [&success, &failedCount](std::pair<Program, std::string> &&p) {
+        if (not p.second.empty()) {
+            ++failedCount;
+            success = false;
+            std::cout << "#############################################################################\n"
+                "\n>>>>>> Kernel \"" << g_kernels.at(p.first) << "\" failed to compile due to below error <<<<<<\n\n" <<
+                p.second <<
+                "\n>>>>>> Kernel \"" << g_kernels.at(p.first) << "\" failed to compile due to above error <<<<<<\n\n"
+                "#############################################################################\n\n";
+        }
+    });
+    std::cout << "Kernels that failed to compile (quantity=" << failedCount << "): ";
+    std::for_each(m_errorMsg.begin(), m_errorMsg.end(), [&success, &failedCount](std::pair<Program, std::string> &&p) {
+        if (not p.second.empty()) {
+            success = false;
+            std::cout << g_kernels.at(p.first);
+            if (--failedCount) {
+                std::cout << ", ";
+            } else {
+                std::cout << ".\nExiting...";
+            }
+        }
+    });
+    std::cout << "\n";
+    if (not success) {
+        exit(1);
+    }
 }
 
 Manager &Manager::the()

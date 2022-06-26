@@ -12,7 +12,14 @@ typedef struct {
     int class_id;//!< object class (if the keypoints need to be clustered by an object they belong to)
 } key_point_t;
 
-__kernel void squareVector(__global unsigned char *image, __global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
+__kernel void squareVector(
+    __global unsigned char *image,
+    __global key_point_t *keypoints,
+    __private int npoints,
+    __private int minBorderX,
+    __private int minBorderY,
+    __private int octave, int size)
+{
     int tid = get_global_id(0);
         if (tid >= npoints) {
             return;
@@ -26,11 +33,11 @@ __kernel void squareVector(__global unsigned char *image, __global key_point_t *
 
 __kernel void squareVector2(
     const image2d_t image,
-    int npoints,
-    int minBorderX,
-    int minBorderY,
-    int octave,
-    int size,
+    __private int npoints,
+    __private int minBorderX,
+    __private int minBorderY,
+    __private int octave,
+    __private int size,
     __global char* keypoints, int dst_step, int dst_offset, int dst_rows, int dst_cols)
 {
     int tid = get_global_id(0);
