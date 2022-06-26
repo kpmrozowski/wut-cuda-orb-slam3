@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <opencv2/core/ocl.hpp>
+#include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <span>
 
@@ -299,7 +300,7 @@ TEST(runCalcOrbKernel, OpenCLTest)
             makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
             makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
 
-    CvVector cvDescriptors{std::vector<unsigned int>(cvKeyPoints.size() * 32)};
+    CvVector cvDescriptors{std::vector<uint>(cvKeyPoints.size() * 32)};
 
     auto start = manager.cv_run(
         Program::OrbKernel,
@@ -360,35 +361,38 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
 {
     auto &manager = ORB_SLAM3::opencl::Manager::the();
     cv::Mat& image = load_sample_image();
+    cv::imshow("", image);
+    cv::waitKey();
     image.convertTo(image, CV_32F, 1.0 / 255);
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
-    uint32_t maxKeypoints = 10'000;
-    struct {
-        unsigned short x = 12;
-        unsigned short y = 3;
-        unsigned short z = 1;
-    } dimGrid;
-    struct {
-        unsigned short x = 32;
-        unsigned short y = 8;
-        unsigned short z = 1;
-    } dimBlock;
+    uint maxKeypoints = 10'000;
+    struct { uint x = 12; uint y = 3; uint z = 1; } dimGrid;
+    struct { uint x = 32; uint y = 8; uint z = 1; } dimBlock;
     CvVector kpLoc{std::vector<short2>(maxKeypoints)};
     CvVector kpScore{std::vector<float>(maxKeypoints)};
-    uint32_t highThreshold = 20, lowThreshold = 7;
-    unsigned short scoreMat_rows = 343, scoreMatCols = 1210;
+    uint highThreshold = 20, lowThreshold = 7;
+    uint scoreMat_rows = 343, scoreMatCols = 1210;
     CvVector scoreMat{std::vector<int>(scoreMat_rows * scoreMatCols)};
-    CvVector counterPtr{std::vector<uint32_t>(1)};
-    
+    CvVector counterPtr{std::vector<uint>(1)};
+    CvVector debugMat{std::vector<uint>(1)};
+
     std::cout << "\n################### BEFORE: ###################\n" <<
         "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y << ", " << dimGrid.z <<
         "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y << ", " << dimBlock.z <<
         "\nimage: " << image.rows << ", " << image.cols << ", " <<
         "\nimage.type: " << image.type() <<
-        "\nkpLoc: " << kpLoc.before()[0].x << ", " << kpLoc.before()[0].y << ", " << kpLoc.before()[1].x << ", " << kpLoc.before()[1].y <<
-        "\nkpScore: " << kpScore.before()[0] << ", " << kpScore.before()[1] <<
+        "\nkpLoc: ";
+    for (int i = 0; i < 20; ++i) {
+        std::cout << "(" << kpLoc.before()[i].x << ", " << kpLoc.before()[i].y << "), ";
+    }
+    std::cout <<
+        "\nkpScore: ";
+    for (int i = 0; i < 20; ++i) {
+        std::cout << kpScore.before()[i] << ", ";
+    }
+    std::cout <<
         "\nmaxKeypoints: " << maxKeypoints <<
         "\nThreshold: " << highThreshold << ", " << lowThreshold <<
         "\nscoreMat: " << scoreMat_rows << ", " << scoreMatCols <<
@@ -397,25 +401,25 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
     std::cout << "\nrunning kernel";
     auto start = manager.cv_run(
         Program::TileCalcKeypointsKernel,
-        dimGrid.x * dimGrid.y * dimGrid.z,
+        dimGrid.x * dimGrid.y * dimGrid.z * dimBlock.x * dimBlock.y * dimBlock.z,
         dimBlock.x * dimBlock.y * dimBlock.z,
         true,
-        /* unsigned short */ dimGrid.x,
-        /* unsigned short */ dimBlock.x,
-        /* unsigned short */ dimBlock.y,
+        /*uint */ dimGrid.x,
+        /*uint */ dimBlock.x,
+        /*uint */ dimBlock.y,
         /*image2d_t */ image2d,
-        /* int */ image.rows,
-        /* int */ image.cols,
+        /*int */ image.rows,
+        /*int */ image.cols,
         /*short2* */ kpLoc.kernelArg(),
         /*float* */ kpScore.kernelArg(),
-        /*unsigned int */ maxKeypoints,
-        /*unsigned int */ highThreshold,
-        /*unsigned int */ lowThreshold,
+        /*uint */ maxKeypoints,
+        /*uint */ highThreshold,
+        /*uint */ lowThreshold,
         /*int* */ scoreMat.kernelArg(),
-        /* unsigned short */ scoreMatCols,
-        /*unsigned int* */ counterPtr.kernelArg()
+        /*uint */ scoreMatCols,
+        /*uint* */ counterPtr.kernelArg()
     );
-    std::cout << "\nkernel started\n";
+    std::cout << "\nkernel finished\n";
 // image, kpLoc, kpScore, maxKeypoints, highThreshold, lowThreshold, scoreMat, counterPtr
     ASSERT_TRUE(start);
 
@@ -424,8 +428,15 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
         "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y << ", " << dimBlock.z <<
         "\nimage: " << image.rows << ", " << image.cols << ", " <<
         "\nimage.type: " << image.type() <<
-        "\nkpLoc: " << kpLoc.result()[0].x << ", " << kpLoc.result()[0].y << ", " << kpLoc.result()[1].x << ", " << kpLoc.result()[1].y <<
-        "\nkpScore: " << kpScore.result()[0] << ", " << kpScore.result()[1] <<
+        "\nkpLoc: ";
+    for (int i = 0; i < 20; ++i) {
+        std::cout << kpLoc.result()[i].x << ", " << kpLoc.result()[i].y << ", ";
+    }
+    std::cout << "\nkpScore: ";
+    for (int i = 0; i < 20; ++i) {
+        std::cout << kpScore.result()[i] << ", ";
+    }
+    std::cout <<
         "\nmaxKeypoints: " << maxKeypoints <<
         "\nThreshold: " << highThreshold << ", " << lowThreshold <<
         "\nscoreMat: " << scoreMat_rows << ", " << scoreMatCols <<
