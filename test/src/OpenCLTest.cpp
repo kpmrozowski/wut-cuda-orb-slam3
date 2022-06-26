@@ -182,10 +182,11 @@ TEST(runKeyPointsKernel2, OpenCLTest)
             makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
             makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
 
-    auto start = manager.cv_run(
+    std::vector<size_t> gridDim{5};
+    auto start = manager.cv_run<1>(
         Program::TestProgram,
         "squareVector2",
-        5,
+        gridDim.data(),
         true,
         /*image2d_t*/ image2d,
         /*npoints*/ 5,
@@ -223,10 +224,11 @@ TEST(runKeyPointsKernel, OpenCLTest)
     boost::compute::copy(keyPoints.begin(), keyPoints.end(), gpuKeyPoints.begin());
 
     // __kernel void addBorder_kernel(__global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
-    auto start = manager.cv_run(
+    std::vector<size_t> gridDim{5};
+    auto start = manager.cv_run<1>(
         Program::TestProgram,
         "squareVector",
-        5,
+        gridDim.data(),
         true,
         image2d,
         gpuKeyPoints.get_buffer().get(),
@@ -302,10 +304,12 @@ TEST(runCalcOrbKernel, OpenCLTest)
 
     CvVector cvDescriptors{std::vector<uint>(cvKeyPoints.size() * 32)};
 
-    auto start = manager.cv_run(
+    std::vector<size_t> gridDim{32 * cvKeyPoints.size()};
+    std::vector<size_t> blockDim{32};
+    auto start = manager.cv_run<1>(
         Program::OrbKernel,
-        32 * cvKeyPoints.size(),
-        32,
+        gridDim.data(),
+        blockDim.data(),
         true,
         /*image2d_t */ image2d,
         /*char* */ cvKeyPoints.umat(),
@@ -361,26 +365,26 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
 {
     auto &manager = ORB_SLAM3::opencl::Manager::the();
     cv::Mat& image = load_sample_image();
-    cv::imshow("", image);
-    cv::waitKey();
+    // cv::imshow("", image);
+    // cv::waitKey();
     image.convertTo(image, CV_32F, 1.0 / 255);
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
     uint maxKeypoints = 10'000;
-    struct { uint x = 12; uint y = 3; uint z = 1; } dimGrid;
-    struct { uint x = 32; uint y = 8; uint z = 1; } dimBlock;
+    struct { uint x = 12; uint y = 3; } dimGrid;
+    struct { uint x = 32; uint y = 8; } dimBlock;
     CvVector kpLoc{std::vector<short2>(maxKeypoints)};
     CvVector kpScore{std::vector<float>(maxKeypoints)};
     uint highThreshold = 20, lowThreshold = 7;
     uint scoreMat_rows = 343, scoreMatCols = 1210;
     CvVector scoreMat{std::vector<int>(scoreMat_rows * scoreMatCols)};
     CvVector counterPtr{std::vector<uint>(1)};
-    CvVector debugMat{std::vector<uint>(1)};
+    CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
 
     std::cout << "\n################### BEFORE: ###################\n" <<
-        "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y << ", " << dimGrid.z <<
-        "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y << ", " << dimBlock.z <<
+        "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y <<
+        "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y <<
         "\nimage: " << image.rows << ", " << image.cols << ", " <<
         "\nimage.type: " << image.type() <<
         "\nkpLoc: ";
@@ -398,15 +402,14 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
         "\nscoreMat: " << scoreMat_rows << ", " << scoreMatCols <<
         "\ncounter_ptr: " << counterPtr.before()[0] << std::endl;
 
+    std::vector<size_t> gridDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
+    std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
     std::cout << "\nrunning kernel";
-    auto start = manager.cv_run(
+    auto start = manager.cv_run<2>(
         Program::TileCalcKeypointsKernel,
-        dimGrid.x * dimGrid.y * dimGrid.z * dimBlock.x * dimBlock.y * dimBlock.z,
-        dimBlock.x * dimBlock.y * dimBlock.z,
+        gridDim.data(),
+        blockDim.data(),
         true,
-        /*uint */ dimGrid.x,
-        /*uint */ dimBlock.x,
-        /*uint */ dimBlock.y,
         /*image2d_t */ image2d,
         /*int */ image.rows,
         /*int */ image.cols,
@@ -417,15 +420,16 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
         /*uint */ lowThreshold,
         /*int* */ scoreMat.kernelArg(),
         /*uint */ scoreMatCols,
-        /*uint* */ counterPtr.kernelArg()
+        /*uint* */ counterPtr.kernelArg(),
+        /*uint* */ debugMat.kernelArg()
     );
     std::cout << "\nkernel finished\n";
 // image, kpLoc, kpScore, maxKeypoints, highThreshold, lowThreshold, scoreMat, counterPtr
     ASSERT_TRUE(start);
 
     std::cout <<  "################### AFTER: ###################\n" <<
-        "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y << ", " << dimGrid.z <<
-        "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y << ", " << dimBlock.z <<
+        "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y <<
+        "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y <<
         "\nimage: " << image.rows << ", " << image.cols << ", " <<
         "\nimage.type: " << image.type() <<
         "\nkpLoc: ";
@@ -441,4 +445,13 @@ TEST(runTileCalcKeypointsKernel, OpenCLTest)
         "\nThreshold: " << highThreshold << ", " << lowThreshold <<
         "\nscoreMat: " << scoreMat_rows << ", " << scoreMatCols <<
         "\ncounter_ptr: " << counterPtr.result()[0] << std::endl;
+    auto debugMatResult = debugMat.result();
+    for (int i = 0; i < dimGrid.x * dimGrid.y; ++i) {
+        for (int j = 0; j < dimBlock.x * dimBlock.y; ++j) {
+            std::cout << debugMatResult[j + i * dimBlock.x * dimBlock.y] << ",";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "\ndimGrid.x * dimGrid.y * dimGrid.z * dimBlock.x * dimBlock.y * dimBlock.z = "
+        << dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y << "\n";
 }

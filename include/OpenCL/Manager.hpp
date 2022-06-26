@@ -83,7 +83,7 @@ class Manager
     cv::ocl::Context m_context;
     cv::ocl::Device m_device;
     cv::ocl::Queue m_queue;
-    size_t m_workGroupSize;
+    std::vector<size_t> m_workGroupSize;
     std::map<Program, std::string> m_errorMsg;
     std::array<cv::ocl::Program, static_cast<size_t>(Program::Count)> m_programs;
 
@@ -128,38 +128,38 @@ class Manager
         return m_programs[static_cast<size_t>(program)];
     }
 
-    template<typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, StringLike S, typename... TArgs>
-    auto cv_run(Program programId, const S &name, std::size_t global_work_size, T syncBool, TArgs &&...args)
+    template<size_t DIMS, typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, StringLike S, typename... TArgs>
+    auto cv_run(Program programId, const S &name, size_t *global_work_size, T syncBool, TArgs &&...args)
     {
         std::string kernelName{name};
         cv::ocl::Kernel kernel(kernelName.data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &m_workGroupSize, syncBool, m_queue);
+        return kernel.run(DIMS , global_work_size, m_workGroupSize.data(), syncBool, m_queue);
     };
 
-    template<typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, typename... TArgs>
-    auto cv_run(Program programId, std::size_t global_work_size, T syncBool, TArgs &&...args)
+    template<size_t DIMS, typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, typename... TArgs>
+    auto cv_run(Program programId, size_t *global_work_size, T syncBool, TArgs &&...args)
     {
         cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &m_workGroupSize, syncBool, m_queue);
+        return kernel.run(DIMS , global_work_size, m_workGroupSize.data(), syncBool, m_queue);
     };
 
-    template<typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, StringLike S, typename... TArgs>
-    auto cv_run(Program programId, const S &name, std::size_t global_work_size, std::size_t local_work_group, T syncBool, TArgs &&...args)
+    template<size_t DIMS, typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, StringLike S, typename... TArgs>
+    auto cv_run(Program programId, const S &name, size_t *global_work_size, size_t *local_work_group, T syncBool, TArgs &&...args)
     {
         std::string kernelName{name};
         cv::ocl::Kernel kernel(kernelName.data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &local_work_group, syncBool, m_queue);
+        return kernel.run(DIMS , global_work_size, local_work_group, syncBool, m_queue);
     };
 
-    template<typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, typename... TArgs>
-    auto cv_run(Program programId, std::size_t global_work_size, std::size_t local_work_group, T syncBool, TArgs &&...args)
+    template<size_t DIMS, typename T, std::enable_if_t<std::is_same_v<T, bool>, int> = 0, typename... TArgs>
+    auto cv_run(Program programId, size_t *global_work_size, size_t *local_work_group, T syncBool, TArgs &&...args)
     {
         cv::ocl::Kernel kernel(g_kernels.at(programId).data(),  cv_program(programId));
         kernel.args(args...);
-        return kernel.run(1, &global_work_size, &local_work_group, syncBool, m_queue);
+        return kernel.run(DIMS , global_work_size, local_work_group, syncBool, m_queue);
     };
 
     template<typename... TArgs>
@@ -170,7 +170,7 @@ class Manager
             passArgumentsToKernel(0, kernel, args...);
         }
         //        queue().enqueue_native_kernel()
-        return queue().enqueue_1d_range_kernel(kernel, 0, global_work_size, m_workGroupSize);
+        return queue().enqueue_1d_range_kernel(kernel, 0, global_work_size, m_workGroupSize[0]);
     }
 
     template<typename... TArgs>
