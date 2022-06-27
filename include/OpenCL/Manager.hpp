@@ -38,9 +38,10 @@ enum class Program : uint8_t
 {
     TestProgram = 0,
     AngleKernel = 1,
-    OrbKernel   = 2,
-    TileCalcKeypointsKernel   = 3,
-    Count       = 4,
+    AddBorderKernel = 2,
+    OrbKernel   = 3,
+    TileCalcKeypointsKernel   = 4,
+    Count       = 5,
 };
 
 template  <typename Key, typename Value, std::size_t Size>
@@ -60,11 +61,12 @@ struct Map {
 };
 
 static constexpr auto g_kernels =
-    Map<Program, std::string_view, 4>{{
-        std::array<std::pair<Program, std::string_view>, 4>{{
-            {Program::TestProgram, /*"squareVector"sv, */   "squareVector2"sv},
-            {Program::AngleKernel, /*"IC_Angle_kernel"sv, */"addBorder_kernel"sv},
-            {Program::OrbKernel,     "calcOrb_kernel"sv},
+    Map<Program, std::string_view, 5>{{
+        std::array<std::pair<Program, std::string_view>, 5>{{
+            {Program::TestProgram, /*"squareVector"sv, */ "squareVector2"sv},
+            {Program::AngleKernel, "IC_Angle_kernel"sv},
+            {Program::AddBorderKernel, "addBorder_kernel"sv},
+            {Program::OrbKernel, "calcOrb_kernel"sv},
             {Program::TileCalcKeypointsKernel, "tileCalcKeypoints_kernel"sv},
 }}}};
 

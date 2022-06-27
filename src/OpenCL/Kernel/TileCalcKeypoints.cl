@@ -4,7 +4,14 @@ const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
                             CLK_ADDRESS_CLAMP_TO_EDGE |
                             CLK_FILTER_NEAREST;
 
-#define PIXEL(imgX, imgY) \
+const sampler_t fSampler =  CLK_NORMALIZED_COORDS_FALSE |
+                            CLK_ADDRESS_CLAMP_TO_EDGE |
+                            CLK_FILTER_LINEAR;
+
+#define PIXEL(imgY, imgX) \
+    read_imagei(img, fSampler, (float2)(imgX + 0.5f, imgY + 0.5f))
+
+#define PIXEL_I(imgY, imgX) \
     read_imagei(img, iSampler, (int2)(imgX, imgY))
 
 inline int diffType(const int v, const int x, const int th)
@@ -24,7 +31,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, C[2] & 0xff, th);
 
     if ((d1 | d2) == 0)
-      return;
+        return;
 
     mask1 |= (d1 & 1) << 0;
     mask2 |= ((d1 & 2) >> 1) << 0;
@@ -38,7 +45,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, C[3] & 0xff, th);
 
     if ((d1 | d2) == 0)
-      return;
+        return;
 
     mask1 |= (d1 & 1) << 4;
     mask2 |= ((d1 & 2) >> 1) << 4;
@@ -52,7 +59,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, (C[2] >> (2 * 8)) & 0xff, th);
 
     if ((d1 | d2) == 0)
-      return;
+        return;
 
     mask1 |= (d1 & 1) << 2;
     mask2 |= ((d1 & 2) >> 1) << 2;
@@ -66,7 +73,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, (C[3] >> (2 * 8)) & 0xff, th);
 
     if ((d1 | d2) == 0)
-      return;
+        return;
 
     mask1 |= (d1 & 1) << 6;
     mask2 |= ((d1 & 2) >> 1) << 6;
@@ -80,7 +87,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, (C[2] >> (1 * 8)) & 0xff, th);
 
     /*if ((d1 | d2) == 0)
-      return;*/
+        return;*/
 
     mask1 |= (d1 & 1) << 1;
     mask2 |= ((d1 & 2) >> 1) << 1;
@@ -94,7 +101,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, (C[2] >> (3 * 8)) & 0xff, th);
 
     /*if ((d1 | d2) == 0)
-      return;*/
+        return;*/
 
     mask1 |= (d1 & 1) << 3;
     mask2 |= ((d1 & 2) >> 1) << 3;
@@ -108,7 +115,7 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     d2 = diffType(v, (C[3] >> (1 * 8)) & 0xff, th);
 
     /*if ((d1 | d2) == 0)
-      return;*/
+        return;*/
 
     mask1 |= (d1 & 1) << 5;
     mask2 |= ((d1 & 2) >> 1) << 5;
@@ -177,11 +184,12 @@ bool isKeyPoint2(
     const int j,
     const int threshold,
     int* scoreMat,
-    uint scoreMatCols)
+    int sRows,
+    int sCols)
 {
     int v;
-    __private uint C[4] = {0,0,0,0};
-
+    uint C[4] = {0,0,0,0};
+    
     C[2] |= (uint)(PIXEL(i - 3, j - 1).x) << 8;
     C[2] |= (uint)(PIXEL(i - 3, j).x);
     C[1] |= (uint)(PIXEL(i - 3, j + 1).x) << (3 * 8);
@@ -200,7 +208,7 @@ bool isKeyPoint2(
     int d2 = diffType(v, C[3] & 0xff, threshold);
 
     if ((d1 | d2) == 0) {
-      return false;
+        return false;
     }
     C[3] |= (uint)(PIXEL(i + 1, j - 3).x) << 8;
     C[0] |= (uint)(PIXEL(i + 1, j + 3).x) << (3 * 8);
@@ -216,11 +224,14 @@ bool isKeyPoint2(
     int mask2 = 0;
 
     calcMask(C, v, threshold, &mask1, &mask2);
+    if (i + j * sCols >= sRows * sCols) {
+        return false;
+    }
     if (isKeyPoint(mask1, mask2)) {
-        scoreMat[i + j * scoreMatCols] = cornerScore(C, v, threshold);
+        scoreMat[i + j * sCols] = cornerScore(C, v, threshold);
         return true;
     }
-    scoreMat[i + j * scoreMatCols] = 0;
+    scoreMat[i + j * sCols] = 0;
     return false;
 }
 
@@ -239,22 +250,22 @@ bool isMax(short2 loc, int* scoreMat, uint scoreMatCols) {
 }
 
 int factorial(int n) {
-   //base case
-   if(n == 0) {
-      return 1;
-   } else {
-      return n * factorial(n-1);
-   }
+    //base case
+    if(n == 0) {
+        return 1;
+    } else {
+        return n * factorial(n-1);
+    }
 }
 
 int fibbonacci(int n) {
-   if(n == 0){
-      return 0;
-   } else if(n == 1) {
-      return 1;
-   } else {
-      return (fibbonacci(n-1) + fibbonacci(n-2));
-   }
+    if(n == 0){
+        return 0;
+    } else if(n == 1) {
+        return 1;
+    } else {
+        return (fibbonacci(n-1) + fibbonacci(n-2));
+    }
 }
 
 void calcFibbonacci(int n) {
@@ -264,93 +275,117 @@ void calcFibbonacci(int n) {
     }
 }
 
+__attribute__((reqd_work_group_size(32,8,1)))
 __kernel void tileCalcKeypoints_kernel(
     __read_only const image2d_t img,
-    __private int imgRows,
-    __private int imgCols,
-    __global short2* kpLoc,   int klStep, int klOffset, int klRows, int klCols,
+    __global short2* kpLoc, int klStep, int klOffset, int klRows, int klCols,
     __global float* kpScore, int ksStep, int ksOffset, int ksRows, int ksCols,
     __private uint maxKeypoints,
     __private uint highThreshold,
     __private uint lowThreshold,
     __global int* scoreMat, int sStep, int sOffset, int sRows, int sCols,
-    __private uint scoreMatCols,
     __global int* debugMat, int dStep, int dOffset, int dRows, int dCols,
-    __global uint* counterPtr
+    __global uint* counterPtr, int cStep, int cOffset, int cRows, int cCols
     )
 {
-    const size_t workGroupId = get_global_id(0) / get_local_size(0);
-    const size_t threadId = get_global_id(0) % get_local_size(0);
-    const struct  { uint x;    uint y; }
+    // get_global_size(0) == 384,
+    // get_global_size(1) == 24,
+    // get_global_size(2) == 1,
+    // get_local_size(0) == 32,
+    // get_local_size(1) == 8,
+    // get_local_size(2) == 1,
+    // get_num_groups(1) == 3,
+    // get_num_groups(2) == 1,
+    // get_num_groups(3) == 1,
+    // get_global_offset(0) == 0,
+    // get_global_offset(1) == 0,
+    // get_global_offset(2) == 0,
+    // get_work_dim() == 2,
+
+    // const struct  { uint x;            uint y; }
+    //     gridDim = { get_global_size(0) / get_local_size(0),
+    //                 get_global_size(1) / get_local_size(1) };
+    // const struct   { uint x;            uint y; }
+    //     blockDim = { get_local_size(0), get_local_size(1) };
+    // const struct   { uint x;           uint y; }
+    //     threadIdx = { get_global_id(0), get_global_id(1) };
+    // debugMat[threadIdx.x + threadIdx.y * gridDim.x * blockDim.x] =
+    //     threadIdx.x + threadIdx.y * gridDim.x * blockDim.x;
+
+    const struct  { uint x;            uint y; }
         gridDim = { get_num_groups(0), get_num_groups(1) };
-    const struct   { uint x;    uint y; }
+    const struct   { uint x;            uint y; }
         blockDim = { get_local_size(0), get_local_size(1) };
-    const struct   { uint x;                 uint y; }
+    const struct   { uint x;          uint y; }
         blockIdx = { get_group_id(0), get_group_id(1) };
-    const struct   { uint x;               uint y; }
+    const struct    { uint x;          uint y; }
         threadIdx = { get_local_id(0), get_local_id(1) };
-    const uint j = threadIdx.x + blockIdx.x * blockDim.x + 3;
-    const uint i = (threadIdx.y + blockIdx.y * blockDim.y) * 4 + 3;
-    const uint tid = threadIdx.y * blockDim.x + threadIdx.x;
+    debugMat[threadIdx.x + blockIdx.x * blockDim.x + (threadIdx.y + blockIdx.y * blockDim.y) * blockDim.x * gridDim.x]
+        = threadIdx.x + blockIdx.x * blockDim.x + (threadIdx.y + blockIdx.y * blockDim.y) * blockDim.x * gridDim.x;
+
+    const int j = threadIdx.x + blockIdx.x * blockDim.x + 3;
+    const int i = (threadIdx.y + blockIdx.y * blockDim.y) * 4 + 3;
+    const int tid = threadIdx.x + blockIdx.x * blockDim.x + (threadIdx.y + blockIdx.y * blockDim.y) * blockDim.x * gridDim.x;
     __local bool hasKp;
     if (tid == 0) {
-      hasKp = false;
+        hasKp = false;
     }
+    int imgRows = get_image_height(img);
+    int imgCols = get_image_width(img);
     __private bool isKp[4] = {0, 0, 0, 0};
     for (int t = 0; t < 4; ++t) {
-      if (i+t < imgRows - 3 && j < imgCols - 3) {
-        isKp[t] = isKeyPoint2(img, i+t, j, highThreshold, scoreMat, scoreMatCols);
-      }
+        if (i+t < imgRows - 3 && j < imgCols - 3) {
+            isKp[t] = isKeyPoint2(img, i+t, j, highThreshold, scoreMat, sRows, sCols);
+        }
     }
 
     // barrieer
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
     for (int t = 0; t < 4; ++t) {
-      if (isKp[t]) {
-        isKp[t] = false;
-        short2 loc = (short2)(j, i+t);
-        if (isMax(loc, scoreMat, scoreMatCols)) {
-          int score = scoreMat[loc.x + loc.y * scoreMatCols];
-          hasKp = true;
-          const unsigned int ind = atomic_inc(counterPtr);
-          if (ind < maxKeypoints) {
-            kpLoc[ind] = loc;
-            kpScore[ind] = (float)score;
-          }
+        if (isKp[t]) {
+            isKp[t] = false;
+            short2 loc = (short2)(j, i+t);
+            if (isMax(loc, scoreMat, sCols)) {
+                int score = scoreMat[loc.x + loc.y * sCols];
+                hasKp = true;
+                const unsigned int ind = atomic_inc(counterPtr);
+                // printf("$\n");
+                if (ind < maxKeypoints) {
+                    kpLoc[ind] = (short2)(j, i+t);
+                    kpScore[ind] = (float)score;
+                }
+            }
         }
-      }
     }
     // barrieer
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
-    if (hasKp) return;
+    // if (hasKp) return;
+    // if (threadIdx.x + blockIdx.x * blockDim.x + (threadIdx.y + blockIdx.y * blockDim.y) * blockDim.x * gridDim.x == 0) {
+    //     calcFibbonacci(30);
+    // }
 
     // lower the threshold and try again
     for (int t = 0; t < 4; ++t) {
-      if (i+t < imgRows - 3 && j < imgCols - 3) {
-        isKp[t] = isKeyPoint2(img, i+t, j, lowThreshold, scoreMat, scoreMatCols);
-      }
+        if (i+t < imgRows - 3 && j < imgCols - 3) {
+            isKp[t] = isKeyPoint2(img, i+t, j, lowThreshold, scoreMat, sRows, sCols);
+        }
     }
     // barrieer
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
     for (int t = 0; t < 4; ++t) {
-      if (isKp[t]) {
-        isKp[t] = false;
-        short2 loc = (short2)(j, i+t);
-        if (isMax(loc, scoreMat, scoreMatCols)) {
-          int score = scoreMat[loc.x + loc.y * scoreMatCols];
-          hasKp = true;
-          const unsigned int ind = atomic_inc(counterPtr);
-          if (ind < maxKeypoints) {
-            kpLoc[ind] = loc;
-            kpScore[ind] = (float)score;
-          }
+        if (isKp[t]) {
+            isKp[t] = false;
+            short2 loc = (short2)(j, i+t);
+            if (isMax(loc, scoreMat, sCols)) {
+                int score = scoreMat[loc.x + loc.y * sCols];
+                hasKp = true;
+                const unsigned int ind = atomic_inc(counterPtr);
+                // printf("€\n");
+                if (ind < maxKeypoints) {
+                    kpLoc[ind] = (short2)(j, i+t);
+                    kpScore[ind] = (float)score;
+                }
+            }
         }
-      }
-    }
-    // barrieer
-    barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
-    if (hasKp) return;
-    if (get_global_id(0) == 0) {
-        calcFibbonacci(30);
     }
 }

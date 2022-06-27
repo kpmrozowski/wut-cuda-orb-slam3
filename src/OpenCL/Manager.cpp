@@ -50,6 +50,7 @@ Manager::Manager() :
     m_programs{
             m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Test.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::TestProgram]),
             m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Angle.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::AngleKernel]),
+            m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/AddBorder.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::AddBorderKernel]),
             m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/Orb.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::OrbKernel]),
             m_context.getProg(loadFromSourceFile("src/OpenCL/Kernel/TileCalcKeypoints.cl"), "-cl-std=CL2.0 -DRETURN_STATUSES", m_errorMsg[Program::TileCalcKeypointsKernel])
     }
