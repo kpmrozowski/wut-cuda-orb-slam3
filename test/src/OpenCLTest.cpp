@@ -1,19 +1,19 @@
 #include "OpenCL/Manager.hpp"
 #include <algorithm>
-#include <opencv2/core/mat.hpp>
 #include <boost/algorithm/cxx11/all_of.hpp>
 #include <boost/compute.hpp>
 #include <boost/compute/types/struct.hpp>
+#include <boost/range/algorithm_ext/for_each.hpp>
 #include <boost/range/combine.hpp>
 #include <filesystem>
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <opencv2/core/mat.hpp>
 #include <opencv2/core/ocl.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <span>
-#include <boost/range/algorithm_ext/for_each.hpp>
 
 using ORB_SLAM3::opencl::Program;
 
@@ -51,7 +51,7 @@ key_point_t makeKp(float angle, float x, float y)
 
 TEST(list_boost_devices, OpenCLTest)
 {
-    boost::compute::device device =  boost::compute::system::default_device();
+    boost::compute::device device = boost::compute::system::default_device();
     std::cout << "hello from boost::compute" << std::endl;
     std::cout << "\tname: " << device.name() << std::endl;
     std::cout << "\tplatform: " << device.platform().name() << std::endl;
@@ -74,8 +74,7 @@ TEST(list_cv_ocl_devices, OpenCLTest)
 
     // In OpenCV 3.0.0 beta, only a single device is detected.
     std::cout << context.ndevices() << " GPU devices are detected." << std::endl;
-    for (int i = 0; i < context.ndevices(); i++)
-    {
+    for (int i = 0; i < context.ndevices(); i++) {
         cv::ocl::Device device = context.device(i);
         std::cout << "name                 : " << device.name() << std::endl;
         std::cout << "available            : " << device.available() << std::endl;
@@ -93,42 +92,36 @@ class CvVector
     size_t m_size;
     cv::UMat m_umat;
     std::optional<cv::Mat> m_mat = std::nullopt;
-    bool synchronized = true;
+    bool synchronized            = true;
 
-public:
-    explicit CvVector(std::vector<T>&& vec)
-     : m_vec(vec)
-     , m_size(m_vec.size())
-     , m_mat_before(1, m_vec.size() * sizeof(T), CV_TYPE, m_vec.data())
+  public:
+    explicit CvVector(std::vector<T> &&vec) :
+        m_vec(vec),
+        m_size(m_vec.size()),
+        m_mat_before(1, m_vec.size() * sizeof(T), CV_TYPE, m_vec.data())
     {
     }
 
-    [[nodiscard]] constexpr size_t size()
-    {
-        return m_size;
-    }
+    [[nodiscard]] constexpr size_t size() { return m_size; }
 
-    [[nodiscard]] std::vector<T>& modify()
-    {
-        return m_vec;
-    }
+    [[nodiscard]] std::vector<T> &modify() { return m_vec; }
 
     [[nodiscard]] std::span<T> before()
     {
-        return std::span<T>{reinterpret_cast<T*>(m_mat_before.data), m_size};
+        return std::span<T>{reinterpret_cast<T *>(m_mat_before.data), m_size};
     }
 
-    [[nodiscard]] cv::UMat& umat()
+    [[nodiscard]] cv::UMat &umat()
     {
         synchronized = false;
-        m_umat = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+        m_umat       = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
         return m_umat;
     }
 
     [[nodiscard]] cv::ocl::KernelArg kernelArg()
     {
         synchronized = false;
-        m_umat = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+        m_umat       = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
         return cv::ocl::KernelArg::ReadWrite(m_umat);
     }
 
@@ -136,12 +129,9 @@ public:
     {
         if (not m_mat.has_value()) {
             m_mat = m_umat.getMat(cv::ACCESS_READ);
-            return std::span<T>{reinterpret_cast<T*>(m_mat_before.data), m_size};
+            return std::span<T>{reinterpret_cast<T *>(m_mat_before.data), m_size};
         }
-        return {
-            reinterpret_cast<T*>(m_mat.value().data),
-            m_size
-        };
+        return {reinterpret_cast<T *>(m_mat.value().data), m_size};
     }
 };
 
@@ -163,10 +153,11 @@ std::span<key_point_t> umat2vec(cv::UMat& umat, size_t size)
 }
 */
 
-cv::Mat& load_sample_image()
+cv::Mat &load_sample_image()
 {
     // auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
-    auto filename = "/shm/datasets/Kitti/sequences/03/image_0/000000.png";
+    auto filename =
+            "/home/ego/more/projects/wut-cuda-orb-slam3/datasets/dataset/sequences/03/image_0/000000.png";
     if (not std::filesystem::is_regular_file(filename)) {
         throw std::runtime_error("image does not exist");
     } else {
@@ -179,36 +170,37 @@ cv::Mat& load_sample_image()
 
 TEST(runKeyPointsKernel2, OpenCLTest)
 {
-    auto &manager = ORB_SLAM3::opencl::Manager::the();
-    cv::Mat& image = load_sample_image();
+    auto &manager      = ORB_SLAM3::opencl::Manager::the();
+    cv::Mat &image     = load_sample_image();
     cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::UMat umat_dest = cv::UMat(image.size(), cv::ACCESS_WRITE, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
-    CvVector<key_point_t> cvKeyPoints{{
-            makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
-            makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
+    CvVector<key_point_t> cvKeyPoints{
+            {
+             makeKp(0.1f, 1.0f, 1.0f),
+             makeKp(0.3f, 3.0f, 4.0f),
+             makeKp(0.2f, 2.0f, 1.0f),
+             makeKp(0.4f, 0.0f, 1.0f),
+             makeKp(0.4f, 1.0f, 2.0f),
+             }
+    };
 
     auto npoints = cvKeyPoints.size();
 
     std::vector<size_t> globalDim{npoints};
-    auto start = manager.cv_run<1>(
-        Program::TestProgram,
-        "squareVector2",
-        globalDim.data(),
-        true,
-        /*image2d_t*/ image2d,
-        /*npoints*/ 5,
-        /*minBorderX*/ 20,
-        /*minBorderY*/ 20,
-        /*octave*/ 0,
-        /*size*/ 5,
-        /*keypoints*/ cvKeyPoints.kernelArg());
+    auto start = manager.cv_run<1>(Program::TestProgram, "squareVector2", globalDim.data(), true,
+                                   /*image2d_t*/ image2d,
+                                   /*npoints*/ 5,
+                                   /*minBorderX*/ 20,
+                                   /*minBorderY*/ 20,
+                                   /*octave*/ 0,
+                                   /*size*/ 5,
+                                   /*keypoints*/ cvKeyPoints.kernelArg());
 
     ASSERT_TRUE(start);
 
-    for (const auto &[lhs, rhs] : boost::combine(cvKeyPoints.before(), cvKeyPoints.result()))
-    {
+    for (const auto &[lhs, rhs] : boost::combine(cvKeyPoints.before(), cvKeyPoints.result())) {
         ASSERT_EQ(5, rhs.class_id);
         std::cout << 5 << " == " << rhs.class_id << "\n";
     }
@@ -259,58 +251,59 @@ TEST(runKeyPointsKernel2, OpenCLTest)
 //     }
 // }
 
-TEST(runSimpleOpenGLProgram, OpenCLTest)
-{
-    namespace compute = boost::compute;
-
-    //    std::string source = BOOST_COMPUTE_STRINGIZE_SOURCE(
-    //        __kernel void squareVector(__global int *data) {
-    //            const int globalId   = get_global_id(0);
-    //            const int value = data[globalId];
-    //            data[globalId] = value * value;
-    //        }
-    //    );
-
-    auto &manager = ORB_SLAM3::opencl::Manager::the();
-
-    std::vector<key_point_t> values(256), values_out(256);
-    std::for_each(values.begin(), values.end(), [i = 0](key_point_t &v) mutable { v.class_id = ++i; });
-    //    std::iota(values.begin(), values.end(), 0);
-
-    compute::vector<key_point_t> gpuValues(256);
-    compute::copy(values.begin(), values.end(), gpuValues.begin());
-
-    auto start = manager.run(
-        Program::TestProgram,
-        "squareVector",
-        256,
-        gpuValues,
-        /*npoints*/ 5,
-        /*minBorderX*/ 20,
-        /*minBorderY*/ 20,
-        /*octave*/ 0,
-        /*size*/ 5
-    );
-    start.wait();
-
-    compute::copy(gpuValues.begin(), gpuValues.end(), values_out.begin());
-
-    for (const auto &[lhs, rhs] : boost::combine(values, values_out)) {
-        ASSERT_EQ(lhs.class_id * 5, rhs.class_id);
-    }
-}
+//TEST(runSimpleOpenGLProgram, OpenCLTest)
+//{
+//    namespace compute = boost::compute;
+//
+//    //    std::string source = BOOST_COMPUTE_STRINGIZE_SOURCE(
+//    //        __kernel void squareVector(__global int *data) {
+//    //            const int globalId   = get_global_id(0);
+//    //            const int value = data[globalId];
+//    //            data[globalId] = value * value;
+//    //        }
+//    //    );
+//
+//    auto &manager = ORB_SLAM3::opencl::Manager::the();
+//
+//    std::vector<key_point_t> values(256), values_out(256);
+//    std::for_each(values.begin(), values.end(), [i = 0](key_point_t &v) mutable { v.class_id = ++i; });
+//    //    std::iota(values.begin(), values.end(), 0);
+//
+//    compute::vector<key_point_t> gpuValues(256);
+//    compute::copy(values.begin(), values.end(), gpuValues.begin());
+//
+//    auto start = manager.run(Program::TestProgram, "squareVector", 256, gpuValues,
+//                             /*npoints*/ 5,
+//                             /*minBorderX*/ 20,
+//                             /*minBorderY*/ 20,
+//                             /*octave*/ 0,
+//                             /*size*/ 5);
+//    start.wait();
+//
+//    compute::copy(gpuValues.begin(), gpuValues.end(), values_out.begin());
+//
+//    for (const auto &[lhs, rhs] : boost::combine(values, values_out)) {
+//        ASSERT_EQ(lhs.class_id * 5, rhs.class_id);
+//    }
+//}
 
 TEST(runCalcOrbKernel, OpenCLTest)
 {
-    auto &manager = ORB_SLAM3::opencl::Manager::the();
-    cv::Mat& image = load_sample_image();
+    auto &manager  = ORB_SLAM3::opencl::Manager::the();
+    cv::Mat &image = load_sample_image();
     image.convertTo(image, CV_32F, 1.0 / 255);
-    cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
 
-    CvVector<key_point_t> cvKeyPoints{{
-        makeKp(0.1f, 1.0f, 1.0f), makeKp(0.3f, 3.0f, 4.0f), makeKp(0.2f, 2.0f, 1.0f),
-        makeKp(0.4f, 0.0f, 1.0f), makeKp(0.4f, 1.0f, 2.0f),}};
+    CvVector<key_point_t> cvKeyPoints{
+            {
+             makeKp(0.1f, 1.0f, 1.0f),
+             makeKp(0.3f, 3.0f, 4.0f),
+             makeKp(0.2f, 2.0f, 1.0f),
+             makeKp(0.4f, 0.0f, 1.0f),
+             makeKp(0.4f, 1.0f, 2.0f),
+             }
+    };
 
     auto npoints = cvKeyPoints.size();
 
@@ -320,14 +313,10 @@ TEST(runCalcOrbKernel, OpenCLTest)
     std::vector<size_t> globalDim{blockDim[0] * npoints};
     // std::vector<size_t> blockDim{256};
     // std::vector<size_t> globalDim{blockDim[0] * cv::divUp(npoints, blockDim[0])};
-    auto start = manager.cv_run<1>(
-        Program::OrbKernel,
-        globalDim.data(),
-        blockDim.data(),
-        true,
-        /*image2d_t */ image2d,
-        /*char* */ cvKeyPoints.umat(),
-        /*image2d_t */ cvDescriptors.umat());
+    auto start = manager.cv_run<1>(Program::OrbKernel, globalDim.data(), blockDim.data(), true,
+                                   /*image2d_t */ image2d,
+                                   /*char* */ cvKeyPoints.umat(),
+                                   /*image2d_t */ cvDescriptors.umat());
 
     ASSERT_TRUE(start);
 
@@ -407,77 +396,80 @@ CV_64F 	6 	14 	22 	30 	38 	46 	54 	62
 
 using chrono_tp = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-std::tuple<bool, std::vector<short2>> runTileCalcKeypointsKernel_fun(cv::Mat& image)
+std::tuple<bool, std::vector<short2>> runTileCalcKeypointsKernel_fun(cv::Mat &image)
 {
-    auto &manager = ORB_SLAM3::opencl::Manager::the();
-    cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    auto &manager     = ORB_SLAM3::opencl::Manager::the();
+    cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
     cv::ocl::Image2D image2d{umat_src};
     uint maxKeypoints = 10'000;
+
     // struct { uint x = 39; uint y = 12; } dimGrid;
     // struct { uint x = 32; uint y = 8; } dimBlock;
-    const struct { uint x = 32; uint y = 8; } dimBlock;
-    const struct  { uint x; uint y; }
-        dimGrid = { (uint)cv::divUp(image.cols, dimBlock.x),
-                    (uint)cv::divUp(image.rows, dimBlock.y * 4u) };
+    const struct
+    {
+        uint x = 32;
+        uint y = 8;
+    } dimBlock;
+
+    const struct
+    {
+        uint x;
+        uint y;
+    } dimGrid = {(uint) cv::divUp(image.cols, dimBlock.x), (uint) cv::divUp(image.rows, dimBlock.y * 4u)};
+
     CvVector kpLoc{std::vector<short2>(maxKeypoints)};
     CvVector kpScore{std::vector<float>(maxKeypoints)};
     uint highThreshold = 20, lowThreshold = 7;
-    cv::UMat scoreUMat{image.size(), CV_8S, cv::USAGE_ALLOCATE_DEVICE_MEMORY};
-    // CvVector scoreUMat{std::vector<int>(scoreUMat.rows * scoreUMat.cols)};
+//    cv::Mat scoreMat{image.size(), CV_8S, cv::USAGE_ALLOCATE_DEVICE_MEMORY};
+//    auto scoreUMat = scoreMat.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+//    CvVector scoreUMat{std::vector<int>(image.rows * image.cols)};
     CvVector counterPtr{std::vector<uint>(1)};
     CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
+    CvVector scoreUMat{std::vector<int>(image.rows * image.cols * 4)};
 
-    // std::cout <<
-    //     "\n################### SETTINGS: ###################" <<
-    //     "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y <<
-    //     "\ndimBlock: " << dimBlock.x << ", " << dimBlock.y <<
-    //     "\nscoreMat: " << scoreUMat.rows << ", " << scoreUMat.cols <<
-    //     "\nimage: " << image.rows << ", " << image.cols << ", " <<
-    //     "\nimage.type: " << image.type() <<
-    //     "\nmaxKeypoints: " << maxKeypoints <<
-    //     "\nThreshold: " << highThreshold << ", " << lowThreshold <<
+    std::cout << "\n################### SETTINGS: ###################"
+              << "\ndimGrid: " << dimGrid.x << ", " << dimGrid.y << "\ndimBlock: " << dimBlock.x << ", "
+//              << dimBlock.y << "\nscoreMat: " << scoreUMat.rows << ", " << scoreUMat.cols
+              << "\nimage: " << image.rows << ", " << image.cols << ", "
+              << "\nimage: " << (image.rows * image.cols) << '\n'
+              << "\ngrid: " << (dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y) << '\n'
+              << "\nimage.type: " << image.type() << "\nmaxKeypoints: " << maxKeypoints
+              << "\nThreshold: " << highThreshold << ", " << lowThreshold <<
 
-    //     "\n\n################### BEFORE: ###################" <<
-    //     "\nkpLoc: ";
-    // for (int i = 0; i < 20; ++i) {
-    //     std::cout << "(" << kpLoc.before()[i].x << ", " << kpLoc.before()[i].y << "), ";
-    // }
-    // std::cout <<
-    //     "\nkpScore: ";
-    // for (int i = 0; i < 20; ++i) {
-    //     std::cout << kpScore.before()[i] << ", ";
-    // }
-    // std::cout <<
-    //     "\ncounter_ptr: " << counterPtr.before()[0] << std::endl;
+            "\n\n################### BEFORE: ###################"
+              << "\nkpLoc: ";
+    for (int i = 0; i < 20; ++i) {
+        std::cout << "(" << kpLoc.before()[i].x << ", " << kpLoc.before()[i].y << "), ";
+    }
+    std::cout << "\nkpScore: ";
+    for (int i = 0; i < 20; ++i) {
+        std::cout << kpScore.before()[i] << ", ";
+    }
+    std::cout << "\ncounter_ptr: " << counterPtr.before()[0] << std::endl;
 
     std::vector<size_t> globalDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
     std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
     std::cout << "\nrunning kernel";
     static chrono_tp startTime = std::chrono::high_resolution_clock::now();
-    auto start = manager.cv_run<2>(
-        Program::TileCalcKeypointsKernel,
-        globalDim.data(),
-        blockDim.data(),
-        true,
-        /*image2d_t */ image2d,
-        /*short2* */ kpLoc.kernelArg(),
-        /*float* */ kpScore.kernelArg(),
-        /*uint */ maxKeypoints,
-        /*uint */ highThreshold,
-        /*uint */ lowThreshold,
-        /*int* */ scoreUMat,
-        /*uint* */ debugMat.kernelArg(),
-        /*uint* */ counterPtr.kernelArg()
-    );
+    auto start = manager.cv_run<2>(Program::TileCalcKeypointsKernel, globalDim.data(), blockDim.data(), true,
+                                   /*image2d_t */ image2d,
+                                   /*short2* */ kpLoc.kernelArg(),
+                                   /*float* */ kpScore.kernelArg(),
+                                   /*uint */ maxKeypoints,
+                                   /*uint */ highThreshold,
+                                   /*uint */ lowThreshold,
+                                   /*int* */ scoreUMat.kernelArg(),
+                                   /*uint* */ debugMat.kernelArg(),
+                                   /*uint* */ counterPtr.kernelArg(),
+                                   image.rows,
+                                   image.cols);
     chrono_tp currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(
-                     currentTime - startTime)
-                     .count();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
     std::cout << "\nkernel finished\n";
     if (not start) {
         return {start, {}};
     }
-    auto kpLocResult = kpLoc.result();
+    auto kpLocResult   = kpLoc.result();
     auto kpScoreResult = kpScore.result();
     std::vector<short2> kpLocVec{kpLocResult.begin(), kpLocResult.end()};
     std::vector<float> kpScoreVec{kpScoreResult.begin(), kpScoreResult.end()};
@@ -517,9 +509,9 @@ std::tuple<bool, std::vector<short2>> runTileCalcKeypointsKernel_fun(cv::Mat& im
 
 TEST(runTileCalcKeypointsKernel, OpenCLTest)
 {
-    cv::Mat& image = load_sample_image();
-    ASSERT_TRUE(image.type() == CV_8UC1 );
-    auto [ start, kpLoc ] = runTileCalcKeypointsKernel_fun(image);
+    cv::Mat &image = load_sample_image();
+    ASSERT_TRUE(image.type() == CV_8UC1);
+    auto [start, kpLoc] = runTileCalcKeypointsKernel_fun(image);
     ASSERT_TRUE(start);
 }
 
@@ -542,32 +534,41 @@ CUDA IC_Angle_kernel duration: 0.000138659
  */
 TEST(runICAngleKernel, OpenCLTest)
 {
-    auto &manager = ORB_SLAM3::opencl::Manager::the();
-    cv::Mat& image = load_sample_image();
+    auto &manager  = ORB_SLAM3::opencl::Manager::the();
+    cv::Mat &image = load_sample_image();
     // cv::imshow("", image);
     // cv::waitKey();
-    ASSERT_TRUE(image.type() == CV_8UC1 );
-    cv::UMat umat_src  = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+    ASSERT_TRUE(image.type() == CV_8UC1);
+    cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
 
-    auto [ start1, kpLoc ] = runTileCalcKeypointsKernel_fun(image);
+    auto [start1, kpLoc] = runTileCalcKeypointsKernel_fun(image);
     ASSERT_TRUE(start1);
 
     uint npoints = kpLoc.size();
-    uint half_k = 15u;
+    uint half_k  = 15u;
 
     CvVector cvKeyPoints{std::vector<key_point_t>(npoints)};
-    boost::for_each(cvKeyPoints.modify(), kpLoc,
-    [](key_point_t& kp, short2 loc) {
-        kp.pt.x = loc.x;
-        kp.pt.y = loc.y;
+    CvVector cvAngles{std::vector<float>(npoints)};
+    boost::for_each(cvKeyPoints.modify(), kpLoc, [](key_point_t &kp, short2 loc) {
+        kp.pt.x  = loc.x;
+        kp.pt.y  = loc.y;
         kp.angle = -1.f;
     });
 
     // struct { uint x = 55; uint y = 1; } dimGrid;
     // struct { uint x = 32; uint y = 8; } dimBlock;
-    const struct { uint x = 32; uint y = 8; } dimBlock;
-    const struct { uint x; uint y; }
-       dimGrid = { (uint)cv::divUp(static_cast<int>(npoints), (dimBlock.y)), 1u };
+    const struct
+    {
+        uint x = 32;
+        uint y = 8;
+    } dimBlock;
+
+    const struct
+    {
+        uint x;
+        uint y;
+    } dimGrid = {(uint) cv::divUp(static_cast<int>(npoints), (dimBlock.y)), 1u};
+
     CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
 
     // std::cout <<
@@ -590,22 +591,15 @@ TEST(runICAngleKernel, OpenCLTest)
     std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
     std::cout << "\nrunning kernel";
     static chrono_tp startTime = std::chrono::high_resolution_clock::now();
-    auto start = manager.cv_run<2>(
-        Program::AngleKernel,
-        globalDim.data(),
-        blockDim.data(),
-        true,
-        /*unsigned char* */ umat_src,
-        /*key_point_t* */ cvKeyPoints.kernelArg(),
-        /*uint */ npoints,
-        /*uint */ half_k,
-        /*uint* */ debugMat.kernelArg()
-    );
+    auto start            = manager.cv_run<2>(Program::AngleKernel, globalDim.data(), blockDim.data(), true,
+                                   /*unsigned char* */ umat_src,
+                                   /*key_point_t* */ cvKeyPoints.kernelArg(),
+                                   /*uint */ npoints,
+                                   /*uint */ half_k,
+                                   /*uint* */ debugMat.kernelArg());
     chrono_tp currentTime = std::chrono::high_resolution_clock::now();
     ASSERT_TRUE(start);
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(
-                     currentTime - startTime)
-                     .count();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
     // std::cout << "\nkernel finished\n";
     // std::cout <<
     //     "\n################### AFTER: ###################\n" <<
@@ -625,5 +619,4 @@ TEST(runICAngleKernel, OpenCLTest)
     //         std::cout << "\n";
     //     }
     // }
-
 }

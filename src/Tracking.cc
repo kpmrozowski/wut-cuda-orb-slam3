@@ -2125,7 +2125,6 @@ void Tracking::Track()
         {
             if(bOK)
             {
-                orb::Benchmark::the()
                 bOK = TrackLocalMap();
 
             }

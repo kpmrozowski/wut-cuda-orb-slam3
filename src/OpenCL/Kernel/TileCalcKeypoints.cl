@@ -138,9 +138,19 @@ void calcMask(const uint* C, const int v, const int th, int* mask1_, int* mask2_
     *mask2_ = mask2;
 }
 
-inline uint popcnt(const uint i) {
+//inline uint popcnt(const uint i) {
+//    uint n;
+//    asm("popc.b32 %0, %1;" : "=r"(n) : "r" (i));
+//    return n;
+//}
+
+inline uint popcnt(uint i) {
     uint n;
-    asm("popc.b32 %0, %1;" : "=r"(n) : "r" (i));
+    while(i != 0u) {
+        if ((i & 0x1u) == 0x1u)
+            ++n;
+        i >>= 1u;
+    }
     return n;
 }
 
@@ -183,7 +193,7 @@ bool isKeyPoint2(
     const int i,
     const int j,
     const int threshold,
-    int* scoreMat,
+    __global int* scoreMat,
     int sRows,
     int sCols)
 {
@@ -227,6 +237,7 @@ bool isKeyPoint2(
     if (i + j * sCols >= sRows * sCols) {
         return false;
     }
+
     if (isKeyPoint(mask1, mask2)) {
         scoreMat[i + j * sCols] = cornerScore(C, v, threshold);
         return true;
@@ -283,9 +294,10 @@ __kernel void tileCalcKeypoints_kernel(
     __private uint maxKeypoints,
     __private uint highThreshold,
     __private uint lowThreshold,
-    __global int* scoreMat, int sStep, int sOffset, int sRows, int sCols,
+    __global int* scoreMat, int sStep, int sOffset, int sRows2, int sCols2,
     __global int* debugMat, int dStep, int dOffset, int dRows, int dCols,
-    __global uint* counterPtr, int cStep, int cOffset, int cRows, int cCols
+    __global uint* counterPtr, int cStep, int cOffset, int cRows, int cCols,
+        int sRows, int sCols
     )
 {
     // get_global_size(0) == 384,
