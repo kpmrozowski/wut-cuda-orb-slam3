@@ -9,10 +9,10 @@ typedef struct {
     unsigned char z;
 } Point3b;
 
-typedef struct {
-    unsigned char *data;
-    size_t step;
-} PtrStepB;
+// typedef struct {
+//     unsigned char *data;
+//     size_t step;
+// } PtrStepB;
 
 typedef struct {
     int x;

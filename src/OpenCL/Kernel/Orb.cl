@@ -1,4 +1,5 @@
 #include "OpenCL/Kernel/key_point.hpp"
+#include "OpenCL/Kernel/bit_pattern_31.cl"
 
 bool is_rhs_greater(Point3b lhs, Point3b rhs) {
     if (lhs.x < rhs.x) {
@@ -17,8 +18,6 @@ bool is_rhs_greater(Point3b lhs, Point3b rhs) {
     return false;
 }
 
-// filled with sample values, should be empty:
-__global unsigned char c_pattern[sizeof(Point2i) * 512] = {3,4,5,6,0,1,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,7,0,1,2,3,4,5,6,7};
 #define CV_PI 3.141592f
 
 const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
@@ -33,6 +32,7 @@ const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
 #define PIXEL(idx) \
     read_imagei(image, iSampler, (int2)(idx/2+20, 20))
 
+__attribute__((reqd_work_group_size(32,1,1)))
 __kernel void calcOrb_kernel(
     __read_only const image2d_t image,
     __global key_point_t* keypoints, int kStep, int kOffset, int kRows, int kCols,
@@ -40,11 +40,11 @@ __kernel void calcOrb_kernel(
     __global int* descriptors, int dStep, int dOffset, int dRows, int dCols)
     // __global int* descriptors) // a w tym przypadku tak jest dobrze (albo albo)
 {
-    const size_t id = get_global_id(0) / get_local_size(0);
-    const size_t tid = get_global_id(0) % get_local_size(0);
+    const size_t id = get_group_id(0);
+    const size_t tid = get_local_id(0);
     ushort2 loc = (ushort2)(keypoints[id].pt.x, keypoints[id].pt.y);
-    Point2i *pattern = (Point2i *)c_pattern + 16 * tid;
 
+    Point2i *pattern = (Point2i *)bit_pattern_31_ + 16 * tid;
     const float factorPI = (float)(CV_PI/180.f);
     float angle = (float)keypoints[id].angle * factorPI;
     float cosA = cos(angle);
@@ -64,23 +64,23 @@ __kernel void calcOrb_kernel(
     // descriptors[tid + id * get_local_size(0)] = (uchar)(1000 * (t1 - t0));
 
     // debuging:
-    // descriptors[tid + id * get_local_size(0)] = (uchar)(PIXEL(tid).x);
-    descriptors[0  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[1  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[2  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[3  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[4  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[5  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[6  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[7  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[8  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[9  + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[10 + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[11 + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[12 + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[13 + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[14 + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
-    descriptors[15 + id * get_local_size(0)] = (uchar)(keypoints[id].pt.x);
+// descriptors[tid + id * get_local_size(0)] = (uchar)(PIXEL(tid).x);
+// descriptors[0  + id * get_local_size(0)] = (uchar)(PIXEL(0 ).x);(keypoints[id].pt.x)
+// descriptors[1  + id * get_local_size(0)] = (uchar)(PIXEL(1 ).x);(keypoints[id].pt.x)
+// descriptors[2  + id * get_local_size(0)] = (uchar)(PIXEL(2 ).x);(keypoints[id].pt.x)
+// descriptors[3  + id * get_local_size(0)] = (uchar)(PIXEL(3 ).x);(keypoints[id].pt.x)
+// descriptors[4  + id * get_local_size(0)] = (uchar)(PIXEL(4 ).x);(keypoints[id].pt.x)
+// descriptors[5  + id * get_local_size(0)] = (uchar)(PIXEL(5 ).x);(keypoints[id].pt.x)
+// descriptors[6  + id * get_local_size(0)] = (uchar)(PIXEL(6 ).x);(keypoints[id].pt.x)
+// descriptors[7  + id * get_local_size(0)] = (uchar)(PIXEL(7 ).x);(keypoints[id].pt.x)
+// descriptors[8  + id * get_local_size(0)] = (uchar)(PIXEL(8 ).x);(keypoints[id].pt.x)
+// descriptors[9  + id * get_local_size(0)] = (uchar)(PIXEL(9 ).x);(keypoints[id].pt.x)
+// descriptors[10 + id * get_local_size(0)] = (uchar)(PIXEL(10).x);(keypoints[id].pt.x)
+// descriptors[11 + id * get_local_size(0)] = (uchar)(PIXEL(11).x);(keypoints[id].pt.x)
+// descriptors[12 + id * get_local_size(0)] = (uchar)(PIXEL(12).x);(keypoints[id].pt.x)
+// descriptors[13 + id * get_local_size(0)] = (uchar)(PIXEL(13).x);(keypoints[id].pt.x)
+// descriptors[14 + id * get_local_size(0)] = (uchar)(PIXEL(14).x);(keypoints[id].pt.x)
+// descriptors[15 + id * get_local_size(0)] = (uchar)(PIXEL(15).x);(keypoints[id].pt.x)
     // int4 test4;
     // test4.xyzw = (int4)(4, 5, 6, 7);
 }
