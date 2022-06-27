@@ -102,7 +102,7 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 set(CMAKE_CXX_STANDARD 20)
 
 #  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
-#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3")
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O1 -fPIC")
 #  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
 #  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 
@@ -209,20 +209,23 @@ src/Settings.cc
 # include/Settings.h
 )
 
+add_subdirectory(src/OpenCL)
+add_subdirectory(src/Benchmark)
 add_subdirectory(Thirdparty/g2o)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
-OpenCL
-fmt
-${OpenCV_LIBS}
-${EIGEN3_LIBS}
-${Pangolin_LIBRARIES}
-${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
-${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
--lboost_serialization
--lcrypto
-spdlog
-fmt
+    OpenCL
+    fmt
+    ${OpenCV_LIBS}
+    ${EIGEN3_LIBS}
+    ${Pangolin_LIBRARIES}
+    ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
+    ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+    -lboost_serialization
+    -lcrypto
+    spdlog
+    fmt
+    orb_benchmark
 )
 
 # If RealSense SDK is found the library is added and its examples compiled
@@ -525,6 +528,5 @@ if(${BUILD_OLD_EXAMPLES})
     endif()
 endif()
 
-add_subdirectory(src/OpenCL)
 add_subdirectory(test/src)
 add_subdirectory(tool)

@@ -1,0 +1,2 @@
+add_executable(orb_benchmark_example Main.cpp)
+target_link_libraries(orb_benchmark_example orb_benchmark)

@@ -30,6 +30,7 @@
 #include "GeometricTools.h"
 
 #include <iostream>
+#include <orb/Benchmark.h>
 
 #include <mutex>
 #include <chrono>
@@ -2124,6 +2125,7 @@ void Tracking::Track()
         {
             if(bOK)
             {
+                orb::Benchmark::the()
                 bOK = TrackLocalMap();
 
             }

@@ -59,6 +59,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <vector>
 #include <iostream>
+#include <orb/Benchmark.h>
 
 #include "ORBextractor.h"
 
@@ -894,7 +895,7 @@ namespace ORB_SLAM3
             vector<KeyPoint> & keypoints = allKeypoints[level];
             keypoints.reserve(nfeatures);
 
-            keypoints = DistributeOctTree(vToDistributeKeys, minBorderX, maxBorderX,
+            keypoints = orb::benchmark::measure_function(orb::benchmark::MeasuredFunction::DistributeOctTree, &ORBextractor::DistributeOctTree, this, vToDistributeKeys, minBorderX, maxBorderX,
                                           minBorderY, maxBorderY,mnFeaturesPerLevel[level], level);
 
             const int scaledPatchSize = PATCH_SIZE*mvScaleFactor[level];
@@ -1114,10 +1115,10 @@ namespace ORB_SLAM3
         assert(image.type() == CV_8UC1 );
 
         // Pre-compute the scale pyramid
-        ComputePyramid(image);
+        MEASURE_METHOD_CALL(ORBextractor, ComputePyramid, image);
 
         vector < vector<KeyPoint> > allKeypoints;
-        ComputeKeyPointsOctTree(allKeypoints);
+        MEASURE_METHOD_CALL(ORBextractor, ComputeKeyPointsOctTree, allKeypoints);
         //ComputeKeyPointsOld(allKeypoints);
 
         Mat descriptors;
@@ -1155,7 +1156,7 @@ namespace ORB_SLAM3
             // Compute the descriptors
             //Mat desc = descriptors.rowRange(offset, offset + nkeypointsLevel);
             Mat desc = cv::Mat(nkeypointsLevel, 32, CV_8U);
-            computeDescriptors(workingMat, keypoints, desc, pattern);
+            MEASURE_FUNC_CALL(computeDescriptors, workingMat, keypoints, desc, pattern);
 
             offset += nkeypointsLevel;
 
