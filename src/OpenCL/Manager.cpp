@@ -42,7 +42,7 @@ cv::ocl::ProgramSource loadFromSourceFile(const std::string &filename)
     return cv::ocl::ProgramSource(kernelSource);
 }
 
-Benchmark::Benchmark() :
+Manager::Manager() :
     m_context(makeContext()),
     m_device(m_context.device(0)),
     m_queue(m_context, m_device),
@@ -86,9 +86,9 @@ Benchmark::Benchmark() :
     }
 }
 
-Benchmark &Benchmark::the()
+Manager &Manager::the()
 {
-    static Benchmark manager;
+    static Manager manager;
     return manager;
 }
 

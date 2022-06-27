@@ -34,7 +34,7 @@ void GpuOrb::launch_async(cv::InputArray _image, const cv::KeyPoint *_keyPoints,
         POP_RANGE;
         return;
     }
-    auto &gpuMan = Benchmark::the();
+    auto &gpuMan = Manager::the();
     auto gpu = compute::system::default_device();
     assert(_image.type() == CV_8UC3);
     cv::UMat gpuImageSrc = _image.getUMat(cv::ACCESS_READ);

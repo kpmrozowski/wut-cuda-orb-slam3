@@ -10,7 +10,7 @@ void IC_Angle::launch_async(const cv::_InputArray &_image, cv::KeyPoint *_keyPoi
     namespace compute = boost::compute;
     auto imageMatrix  = _image.getUMat();
 
-    auto &gpuMan = Benchmark::the();
+    auto &gpuMan = Manager::the();
 
     compute::vector<cv::KeyPoint> gpuKeyPoints(nPoints);
     compute::copy(_keyPoints, _keyPoints + nPoints, gpuKeyPoints.begin());

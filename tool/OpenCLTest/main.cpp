@@ -33,7 +33,7 @@ void runKeyPointsKernel() {
     boost::compute::vector<cv::KeyPoint> gpuKeyPoints(5);
     boost::compute::copy(keyPoints.begin(), keyPoints.end(), gpuKeyPoints.begin());
 
-    auto &manager = ORB_SLAM3::opencl::Benchmark::the();
+    auto &manager = ORB_SLAM3::opencl::Manager::the();
     // __kernel void addBorder_kernel(__global key_point_t *keypoints, int npoints, int minBorderX, int minBorderY, int octave, int size) {
     auto start = manager.run(Program::AngleKernel, "addBorder_kernel",  5, gpuKeyPoints, static_cast<int>(gpuKeyPoints.size()), 20, 20, 0, 5);
     start.wait();
@@ -44,7 +44,7 @@ void runSimpleOpenGLProgram()
     using ORB_SLAM3::opencl::Program;
     namespace compute = boost::compute;
 
-    auto &manager = ORB_SLAM3::opencl::Benchmark::the();
+    auto &manager = ORB_SLAM3::opencl::Manager::the();
 
     std::vector<int> values(256);
     std::iota(values.begin(), values.end(), 0);
