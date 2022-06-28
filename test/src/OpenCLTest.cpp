@@ -17,26 +17,6 @@
 
 using ORB_SLAM3::opencl::Program;
 
-typedef struct
-{
-    float x;
-    float y;
-} point2f_t;
-
-BOOST_COMPUTE_ADAPT_STRUCT(point2f_t, point2f_t, (x, y))
-
-typedef struct
-{
-    point2f_t pt;  //!< coordinates of the keypoints
-    float size;    //!< diameter of the meaningful keypoint neighborhood
-    float angle;   //!< computed orientation of the keypoint (-1 if not applicable);
-    float response;//!< the response by which the most strong keypoints have been selected. Can be used for the further sorting or subsampling
-    int octave;    //!< octave (pyramid layer) from which the keypoint has been extracted
-    int class_id;  //!< object class (if the keypoints need to be clustered by an object they belong to)
-} key_point_t;
-
-BOOST_COMPUTE_ADAPT_STRUCT(key_point_t, key_point_t, (pt, size, angle, response, octave, class_id))
-
 key_point_t makeKp(float angle, float x, float y)
 {
     key_point_t kp;

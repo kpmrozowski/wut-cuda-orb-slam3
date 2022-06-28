@@ -1511,7 +1511,7 @@ Sophus::SE3f Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat 
 #endif
 
     //cout << "Tracking start" << endl;
-    Track();
+    orb::benchmark::measure_function_void(orb::benchmark::MeasuredFunction::Track, &Tracking::Track, this);
     //cout << "Tracking end" << endl;
 
     return mCurrentFrame.GetPose();
@@ -1558,7 +1558,7 @@ Sophus::SE3f Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, co
     vdORBExtract_ms.push_back(mCurrentFrame.mTimeORB_Ext);
 #endif
 
-    Track();
+    orb::benchmark::measure_function_void(orb::benchmark::MeasuredFunction::Track, &Tracking::Track, this);
 
     return mCurrentFrame.GetPose();
 }
@@ -1610,7 +1610,7 @@ Sophus::SE3f Tracking::GrabImageMonocular(const cv::Mat &im, const double &times
 #endif
 
     lastID = mCurrentFrame.mnId;
-    Track();
+    orb::benchmark::measure_function_void(orb::benchmark::MeasuredFunction::Track, &Tracking::Track, this);
 
     return mCurrentFrame.GetPose();
 }

@@ -22,6 +22,8 @@
 #include <vector>
 #include <list>
 #include <opencv2/opencv.hpp>
+
+#include "OpenCL/Manager.hpp"
 // #include <opencv2/core/cuda.hpp>
 //#include <opencv2/cudafilters.hpp>
 //#include <opencv2/cudafeatures2d.hpp>
@@ -92,7 +94,7 @@ public:
 protected:
 
     void ComputePyramid(cv::Mat image);
-    void ComputeKeyPointsOctTree(std::vector<std::vector<cv::KeyPoint> >& allKeypoints);    
+    void ComputeKeyPointsOctTree(std::vector<std::vector<cv::KeyPoint>>& allKeypoints);
     std::vector<cv::KeyPoint> DistributeOctTree(const std::vector<cv::KeyPoint>& vToDistributeKeys, const int &minX,
                                            const int &maxX, const int &minY, const int &maxY, const int &nFeatures, const int &level);
 
@@ -113,6 +115,8 @@ protected:
     std::vector<float> mvInvScaleFactor;    
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
+
+    opencl::Manager &m_manager;
 };
 
 } //namespace ORB_SLAM

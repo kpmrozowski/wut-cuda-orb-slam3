@@ -54,12 +54,13 @@
 
 #include <opencv2/core/core.hpp>
 // #include <opencv2/core/ocl.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/features2d/features2d.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <vector>
+#include <boost/range/algorithm_ext/for_each.hpp>
 #include <iostream>
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <orb/Benchmark.h>
+#include <vector>
 
 #include "ORBextractor.h"
 
@@ -429,7 +430,7 @@ namespace ORB_SLAM3
     ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
                                int _iniThFAST, int _minThFAST):
             nfeatures(_nfeatures), scaleFactor(_scaleFactor), nlevels(_nlevels),
-            iniThFAST(_iniThFAST), minThFAST(_minThFAST)
+            iniThFAST(_iniThFAST), minThFAST(_minThFAST), m_manager(opencl::Manager::the())
     {
         mvScaleFactor.resize(nlevels);
         mvLevelSigma2.resize(nlevels);
@@ -488,13 +489,47 @@ namespace ORB_SLAM3
         }
     }
 
-    static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
+    static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax, opencl::Manager &manager)
     {
-        for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
-                     keypointEnd = keypoints.end(); keypoint != keypointEnd; ++keypoint)
-        {
-            keypoint->angle = IC_Angle(image, keypoint->pt, umax);
-        }
+        if (keypoints.empty())
+            return;
+
+        const uint npoints = keypoints.size();
+
+        ORB_SLAM3::opencl::uint2 dimBlock{32, 8};
+        ORB_SLAM3::opencl::uint2 dimGrid{(uint) cv::divUp(static_cast<int>(npoints), (dimBlock.y)), 1u};
+
+        opencl::CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
+
+        std::vector<size_t> globalDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
+        std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
+
+        opencl::CvVector cvKeyPoints{vector<key_point_t>{keypoints.size()}};
+        boost::for_each(cvKeyPoints.modify(), keypoints, [](key_point_t &kp, KeyPoint &pt) {
+          kp.pt.x  = pt.pt.x;
+          kp.pt.y  = pt.pt.y;
+          kp.angle = -1.f;
+        });
+
+        cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+
+        uint half_k  = 15u;
+
+        auto start            = manager.cv_run<2>(opencl::Program::AngleKernel, globalDim.data(), blockDim.data(), true,
+                /*unsigned char* */ umat_src,
+                /*key_point_t* */ cvKeyPoints.kernelArg(),
+                /*uint */ npoints,
+                /*uint */ half_k,
+                /*uint* */ debugMat.kernelArg());
+
+        if (not start)
+            throw std::runtime_error("failed to run the kernel");
+
+        boost::for_each(cvKeyPoints.modify(), keypoints, [](key_point_t &kp, KeyPoint& pt) {
+          pt.pt.x = kp.pt.x;
+          pt.pt.y = kp.pt.y;
+          pt.angle = kp.angle;
+        });
     }
 
     void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4)
@@ -798,7 +833,7 @@ namespace ORB_SLAM3
         return vResultKeys;
     }
 
-    void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoints)
+    void ORBextractor::ComputeKeyPointsOctTree(std::vector<std::vector<cv::KeyPoint>>& allKeypoints)
     {
         // cv::UMat uMat;
         allKeypoints.resize(nlevels);
@@ -913,7 +948,7 @@ namespace ORB_SLAM3
 
         // compute orientations
         for (int level = 0; level < nlevels; ++level)
-            computeOrientation(mvImagePyramid[level], allKeypoints[level], umax);
+            MEASURE_FUNC_CALL(computeOrientation, mvImagePyramid[level], allKeypoints[level], umax, m_manager);
     }
 
     void ORBextractor::ComputeKeyPointsOld(std::vector<std::vector<KeyPoint> > &allKeypoints)
@@ -1092,7 +1127,7 @@ namespace ORB_SLAM3
 
         // and compute orientations
         for (int level = 0; level < nlevels; ++level)
-            computeOrientation(mvImagePyramid[level], allKeypoints[level], umax);
+            computeOrientation(mvImagePyramid[level], allKeypoints[level], umax, m_manager);
     }
 
     static void computeDescriptors(const Mat& image, vector<KeyPoint>& keypoints, Mat& descriptors,
@@ -1151,7 +1186,9 @@ namespace ORB_SLAM3
 
             // preprocess the resized image
             Mat workingMat = mvImagePyramid[level].clone();
-            GaussianBlur(workingMat, workingMat, Size(7, 7), 2, 2, BORDER_REFLECT_101);
+
+            using cv::GaussianBlur;
+            MEASURE_FUNC_CALL(GaussianBlur, workingMat, workingMat, Size(7, 7), 2, 2, BORDER_REFLECT_101);
 
             // Compute the descriptors
             //Mat desc = descriptors.rowRange(offset, offset + nkeypointsLevel);

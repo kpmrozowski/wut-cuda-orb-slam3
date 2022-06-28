@@ -10,6 +10,9 @@
 #define MEASURE_METHOD_CALL(classname, func, ...) ::orb::benchmark::measure_function_void(::orb::benchmark::MeasuredFunction::func, &classname::func, this, __VA_ARGS__);
 #define MEASURE_FUNC_CALL(func, ...) ::orb::benchmark::measure_function_void(::orb::benchmark::MeasuredFunction::func, func, __VA_ARGS__);
 
+#define MEASURE_RET_METHOD_CALL(classname, func, ...) ::orb::benchmark::measure_function(::orb::benchmark::MeasuredFunction::func, &classname::func, this, __VA_ARGS__);
+#define MEASURE_RET_CALL(func, ...) ::orb::benchmark::measure_function(::orb::benchmark::MeasuredFunction::func, func, __VA_ARGS__);
+
 namespace orb::benchmark {
 
 template<typename TValue>
@@ -62,6 +65,10 @@ enum class MeasuredFunction {
     ComputeKeyPointsOctTree,
     ComputePyramid,
     computeDescriptors,
+    GaussianBlur,
+    GrabImageStereo,
+    Track,
+    computeOrientation,
     Action_Exit
 };
 
@@ -73,16 +80,22 @@ constexpr std::string_view to_string(MeasuredFunction func) {
     case MeasuredFunction::DistributeOctTree: return "DistributeOctTree";
     case MeasuredFunction::ComputePyramid: return "ComputePyramid";
     case MeasuredFunction::computeDescriptors: return "computeDescriptors";
+    case MeasuredFunction::GaussianBlur: return "GaussianBlur";
+    case MeasuredFunction::GrabImageStereo: return "GrabImageStereo";
+    case MeasuredFunction::Track: return "Track";
+    case MeasuredFunction::computeOrientation: return "computeOrientation";
     default: break;
     }
     return "";
 }
 
 using Duration = std::chrono::nanoseconds;
+using ClockCycles = int64_t;
 
 struct LogEntry {
     MeasuredFunction function;
     Duration duration;
+    Duration cycles;
 };
 
 enum class ExitStatus {
@@ -98,7 +111,7 @@ class Benchmark
     void start(const std::string &filename);
     ExitStatus stop();
     ExitStatus write_routine(const std::string &filename);
-    void log(MeasuredFunction func, Duration duration);
+    void log(MeasuredFunction func, Duration duration, Duration cycles);
   private:
 
     DBQueue<LogEntry> m_log_queue;
@@ -108,16 +121,18 @@ class Benchmark
 template<typename TFunction, typename... TArgs>
 inline auto measure_function(MeasuredFunction name, TFunction &&func, TArgs&& ...args) {
     auto before = std::chrono::system_clock::now();
+    auto before_cycles = std::chrono::high_resolution_clock::now();
     auto&& result = std::invoke(func, args...);
-    Benchmark::the().log(name, std::chrono::system_clock::now() - before);
+    Benchmark::the().log(name, std::chrono::system_clock::now() - before,  std::chrono::high_resolution_clock::now() - before_cycles);
     return std::forward<std::decay_t<decltype(result)>>(result);
 }
 
 template<typename TFunction, typename... TArgs>
 inline void measure_function_void(MeasuredFunction name, TFunction &&func, TArgs&& ...args) {
     auto before = std::chrono::system_clock::now();
+    auto before_cycles = std::chrono::high_resolution_clock::now();
     std::invoke(func, args...);
-    Benchmark::the().log(name, std::chrono::system_clock::now() - before);
+    Benchmark::the().log(name, std::chrono::system_clock::now() - before,  std::chrono::high_resolution_clock::now() - before_cycles);
 }
 
 class BenchmarkInstance {
