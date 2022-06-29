@@ -52,10 +52,15 @@
 */
 
 
+#include <fmt/core.h>
+#include <memory>
 #include <opencv2/core/core.hpp>
 // #include <opencv2/core/ocl.hpp>
 #include <boost/range/algorithm_ext/for_each.hpp>
 #include <iostream>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/ocl.hpp>
+#include <opencv2/core/types.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -63,6 +68,9 @@
 #include <vector>
 
 #include "ORBextractor.h"
+#include "OpenCL/CvVector.hpp"
+
+#define FEATURE_SIZE 7.0f
 
 
 // using namespace cv;
@@ -92,37 +100,6 @@ namespace ORB_SLAM3
     const int PATCH_SIZE = 31;
     const int HALF_PATCH_SIZE = 15;
     const int EDGE_THRESHOLD = 19;
-
-
-    static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
-    {
-        int m_01 = 0, m_10 = 0;
-
-        const uchar* center = &image.at<uchar> (cvRound(pt.y), cvRound(pt.x));
-
-        // Treat the center line differently, v=0
-        for (int u = -HALF_PATCH_SIZE; u <= HALF_PATCH_SIZE; ++u)
-            m_10 += u * center[u];
-
-        // Go line by line in the circuI853lar patch
-        int step = (int)image.step1();
-        for (int v = 1; v <= HALF_PATCH_SIZE; ++v)
-        {
-            // Proceed over the two lines
-            int v_sum = 0;
-            int d = u_max[v];
-            for (int u = -d; u <= d; ++u)
-            {
-                int val_plus = center[u + v*step], val_minus = center[u - v*step];
-                v_sum += (val_plus - val_minus);
-                m_10 += u * (val_plus + val_minus);
-            }
-            m_01 += v * v_sum;
-        }
-
-        return fastAtan2((float)m_01, (float)m_10);
-    }
-
 
     const float factorPI = (float)(CV_PI/180.f);
     static void computeOrbDescriptor(const KeyPoint& kpt,
@@ -165,8 +142,6 @@ namespace ORB_SLAM3
 
 #undef GET_VALUE
     }
-
-
     static int bit_pattern_31_[256*4] =
             {
                     8,-3, 9,5/*mean (0), correlation (0)*/,
@@ -499,37 +474,40 @@ namespace ORB_SLAM3
         ORB_SLAM3::opencl::uint2 dimBlock{32, 8};
         ORB_SLAM3::opencl::uint2 dimGrid{(uint) cv::divUp(static_cast<int>(npoints), (dimBlock.y)), 1u};
 
-        opencl::CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
-
         std::vector<size_t> globalDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
         std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
 
-        opencl::CvVector cvKeyPoints{vector<key_point_t>{keypoints.size()}};
-        boost::for_each(cvKeyPoints.modify(), keypoints, [](key_point_t &kp, KeyPoint &pt) {
-          kp.pt.x  = pt.pt.x;
-          kp.pt.y  = pt.pt.y;
-          kp.angle = -1.f;
-        });
+        // opencl::CvVector<key_point_t> cvKeyPoints{reinterpret_cast<key_point_t*>(keypoints.data()), npoints};
+        cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U, keypoints.data()};
+        cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
 
         cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
 
         uint half_k  = 15u;
 
-        auto start            = manager.cv_run<2>(opencl::Program::AngleKernel, globalDim.data(), blockDim.data(), true,
+        auto start            = manager.cv_run<2>(
+            opencl::Program::AngleKernel,
+            globalDim.data(),
+            blockDim.data(),
+            true,
                 /*unsigned char* */ umat_src,
-                /*key_point_t* */ cvKeyPoints.kernelArg(),
+                // /*key_point_t* */ cvKeyPoints.kernelArg(),
+                /*key_point_t* */ cv::ocl::KernelArg::ReadWrite(cvKeyPointsUMat),
                 /*uint */ npoints,
-                /*uint */ half_k,
-                /*uint* */ debugMat.kernelArg());
+                /*uint */ half_k);
 
         if (not start)
-            throw std::runtime_error("failed to run the kernel");
+            throw std::runtime_error("failed to run the AngleKernel");
+        cv::Mat keypointsMat{1, static_cast<int>(keypoints.size() * sizeof(cv::KeyPoint)), CV_8UC1, reinterpret_cast<uchar*>(keypoints.data())};
+        cv::Mat{1, static_cast<int>(keypoints.size() * sizeof(cv::KeyPoint)), CV_8UC1, cvKeyPointsUMat.getMat(cv::ACCESS_READ).data}.copyTo(keypointsMat);
 
-        boost::for_each(cvKeyPoints.modify(), keypoints, [](key_point_t &kp, KeyPoint& pt) {
-          pt.pt.x = kp.pt.x;
-          pt.pt.y = kp.pt.y;
-          pt.angle = kp.angle;
-        });
+        // cvKeyPoints.get(keypointsMat);
+        // auto result = cvKeyPoints.result();
+        // auto it = result.begin();
+        // for (auto& kp : keypoints) {
+        //     kp.angle = it->angle;
+        //     it++;
+        // }
     }
 
     void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4)
@@ -833,6 +811,97 @@ namespace ORB_SLAM3
         return vResultKeys;
     }
 
+    struct short2
+    {
+        short x;
+        short y;
+    };
+    std::tuple<bool, std::vector<cv::KeyPoint>> runTileCalcKeypointsKernel_fun(cv::Mat &image, int nfeatures)
+    {
+        auto &manager     = ORB_SLAM3::opencl::Manager::the();
+        cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+        cv::ocl::Image2D image2d{umat_src};
+        uint maxKeypoints = nfeatures;
+        const struct
+        {
+            uint x = 32;
+            uint y = 8;
+        } dimBlock;
+        const struct
+        {
+            uint x;
+            uint y;
+        } dimGrid = {(uint) cv::divUp(image.cols, dimBlock.x), (uint) cv::divUp(image.rows, dimBlock.y * 4u)};
+        uint highThreshold = 20, lowThreshold = 7, sRows = image.rows, sCols = image.cols;
+        opencl::CvVector counterPtr{std::vector<uint>(1)};
+        opencl::CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
+        opencl::CvVector scoreUMat{std::vector<int>(image.rows * image.cols * 4)};
+
+        opencl::CvVector<cv::KeyPoint> cvKeyPoints{std::vector<cv::KeyPoint>(maxKeypoints)};
+
+        std::vector<size_t> globalDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
+        std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
+        std::cout << "\nrunning kernel";
+        auto start = manager.cv_run<2>(
+            opencl::Program::TileCalcKeypointsKernel,
+            globalDim.data(),
+            blockDim.data(),
+            true,
+            /*image2d_t */ image2d,
+            // /*short2* */ kpLoc.kernelArg(),
+            /*key_point_t* */ cvKeyPoints.kernelArg(),
+            /*uint */ maxKeypoints,
+            /*uint */ highThreshold,
+            /*uint */ lowThreshold,
+            /*float */ FEATURE_SIZE,
+            /*int* */ scoreUMat.kernelArg(),
+            /*uint* */ debugMat.kernelArg(),
+            /*uint* */ counterPtr.kernelArg(),
+            /*uint */ sRows,
+            /*uint */ sCols);
+        std::cout << "\nkernel finished\n";
+        if (not start) {
+            return {start, {}};
+        }
+        auto cvKeyPointsResult = cvKeyPoints.result();
+        std::vector<cv::KeyPoint> cvKeyPointsVec{cvKeyPointsResult.begin(), cvKeyPointsResult.end()};
+        cvKeyPointsVec.resize(counterPtr.result()[0]);
+        for (auto kp : cvKeyPointsVec) {
+            fmt::print("({},{},{}),", kp.pt.x, kp.pt.y, kp.response);
+        }
+        return {start, cvKeyPointsVec};
+    }
+
+    void addBorderToCoordinates(
+        std::vector<cv::KeyPoint> &keypoints,
+        float minBorderX,
+        float minBorderY,
+        float octave,
+        float size,
+        opencl::Manager &manager)
+    {
+        uint npoints = keypoints.size();
+        cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U, keypoints.data()};
+        cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
+        std::vector<size_t> blockDim{256};
+        std::vector<size_t> globalDim{blockDim[0] * cv::divUp(static_cast<int>(npoints), blockDim[0])};
+        auto start = manager.cv_run<1>(
+            opencl::Program::AddBorderKernel,
+            globalDim.data(),
+            blockDim.data(),
+            true,
+            /*key_point_t* */ cv::ocl::KernelArg::ReadWrite(cvKeyPointsUMat),
+            /*uint*/ npoints,
+            /*float*/ minBorderX,
+            /*float*/ minBorderY,
+            /*float*/ octave,
+            /*float*/ size);
+        if (not start)
+            throw std::runtime_error("failed to run the AddBorderKernel");
+        cv::Mat keypointsMat{1, static_cast<int>(keypoints.size() * sizeof(cv::KeyPoint)), CV_8UC1, reinterpret_cast<uchar*>(keypoints.data())};
+        cv::Mat{1, static_cast<int>(keypoints.size() * sizeof(cv::KeyPoint)), CV_8UC1, cvKeyPointsUMat.getMat(cv::ACCESS_READ).data}.copyTo(keypointsMat);
+    }
+
     void ORBextractor::ComputeKeyPointsOctTree(std::vector<std::vector<cv::KeyPoint>>& allKeypoints)
     {
         // cv::UMat uMat;
@@ -927,23 +996,28 @@ namespace ORB_SLAM3
                 }
             }
 
+            // auto [start, vToDistributeKeys] = runTileCalcKeypointsKernel_fun(mvImagePyramid[level], nfeatures);
+            // if (not start)
+            //     throw std::runtime_error("failed to run the tileCalcKeypoints_kernel");
+            // std::cout << "\nvToDistributeKeys size: " << vToDistributeKeys.size() << "\n";
+
             vector<KeyPoint> & keypoints = allKeypoints[level];
             keypoints.reserve(nfeatures);
-
             keypoints = orb::benchmark::measure_function(orb::benchmark::MeasuredFunction::DistributeOctTree, &ORBextractor::DistributeOctTree, this, vToDistributeKeys, minBorderX, maxBorderX,
                                           minBorderY, maxBorderY,mnFeaturesPerLevel[level], level);
 
             const int scaledPatchSize = PATCH_SIZE*mvScaleFactor[level];
 
             // Add border to coordinates and scale information
-            const int nkps = keypoints.size();
-            for(int i=0; i<nkps ; i++)
-            {
-                keypoints[i].pt.x+=minBorderX;
-                keypoints[i].pt.y+=minBorderY;
-                keypoints[i].octave=level;
-                keypoints[i].size = scaledPatchSize;
-            }
+            addBorderToCoordinates(keypoints, minBorderX, minBorderY, level, scaledPatchSize, m_manager);
+            // const int nkps = keypoints.size();
+            // for(int i=0; i<nkps ; i++)
+            // {
+            //     keypoints[i].pt.x+=minBorderX;
+            //     keypoints[i].pt.y+=minBorderY;
+            //     keypoints[i].octave=level;
+            //     keypoints[i].size = scaledPatchSize;
+            // }
         }
 
         // compute orientations
@@ -1131,12 +1205,47 @@ namespace ORB_SLAM3
     }
 
     static void computeDescriptors(const Mat& image, vector<KeyPoint>& keypoints, Mat& descriptors,
-                                   const vector<Point>& pattern)
+                                   const vector<Point>& pattern, opencl::Manager &manager)
     {
         descriptors = Mat::zeros((int)keypoints.size(), 32, CV_8UC1);
 
-        for (size_t i = 0; i < keypoints.size(); i++)
-            computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
+        // for (size_t i = 0; i < keypoints.size(); i++)
+        //     computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
+
+        cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+        cv::ocl::Image2D image2d{umat_src};
+        uint npoints = keypoints.size();
+        cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U, keypoints.data()};
+        cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
+
+        opencl::CvVector cvDescriptors{std::vector<uchar>(npoints * 32)};
+        // cv::UMat descriptorsUMat = descriptors.getUMat(cv::ACCESS_RW);
+
+        std::vector<size_t> blockDim{32};
+        std::vector<size_t> globalDim{blockDim[0] * npoints};
+        auto start = manager.cv_run<1>(
+            opencl::Program::OrbKernel,
+            globalDim.data(),
+            blockDim.data(),
+            true,
+            /*image2d_t */ image2d,
+            // /*key_point_t* */ cvKeyPoints.kernelArg(),
+            /*key_point_t* */ cv::ocl::KernelArg::ReadWrite(cvKeyPointsUMat),
+            // /*uchar */ descriptorsUMat);
+            /*uchar */ cvDescriptors.kernelArg(),
+            npoints);
+        if (not start)
+            throw std::runtime_error("failed to run the OrbKernel");
+        // std::cout << "cvDescriptors:\n\n";
+        // // cvDescriptors.get(descriptors);
+        // cvDescriptors.umat().getMat(cv::ACCESS_READ).copyTo(descriptors);
+        cv::Mat{(int)keypoints.size(), 32, CV_8UC1, cvDescriptors.umat().getMat(cv::ACCESS_READ).data}.copyTo(descriptors);
+        // std::cout << "\n\n" << descriptors << "\n\n";
+        // // auto result = cvDescriptors.result();
+        // // for (int i = 0; i < 10; ++i)
+        // //     std::cout << result[i] << " ";
+        // // std::cout << "\n\n";
+        // exit(0);
     }
 
     int ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPoint>& _keypoints,
@@ -1193,7 +1302,7 @@ namespace ORB_SLAM3
             // Compute the descriptors
             //Mat desc = descriptors.rowRange(offset, offset + nkeypointsLevel);
             Mat desc = cv::Mat(nkeypointsLevel, 32, CV_8U);
-            MEASURE_FUNC_CALL(computeDescriptors, workingMat, keypoints, desc, pattern);
+            MEASURE_FUNC_CALL(computeDescriptors, workingMat, keypoints, desc, pattern, m_manager);
 
             offset += nkeypointsLevel;
 

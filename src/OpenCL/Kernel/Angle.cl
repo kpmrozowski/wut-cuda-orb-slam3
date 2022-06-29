@@ -2,10 +2,11 @@
 
 __global static int c_u_max[16] = {15, 15, 15, 15, 14, 14, 14, 13, 13, 12, 11, 10, 9, 8, 6, 3};
 
-__kernel void IC_Angle_kernel(__global unsigned char *image, int iStep, int iOffset, int iRows, int iCols,
-                              __global key_point_t *keypoints, int kStep, int kOffset, int kRows, int kCols,
-                              const uint npoints, const uint half_k, __global int *debugMat, int dStep,
-                              int dOffset, int dRows, int dCols)
+__kernel void IC_Angle_kernel(
+    __global uchar *image, int iStep, int iOffset, int iRows, int iCols,
+    __global uchar *keypoints_, int kStep, int kOffset, int kRows, int kCols,
+    const uint npoints,
+    const uint half_k)
 {
     const size_t thread_x   = get_local_id(0);
     const size_t thread_y   = get_local_id(1);
@@ -18,6 +19,7 @@ __kernel void IC_Angle_kernel(__global unsigned char *image, int iStep, int iOff
     if (ptidx >= npoints)
         return;
 
+    __global key_point_t *keypoints = (__global key_point_t *)keypoints_;
     if (ptidx < npoints) {
         int m_01 = 0, m_10 = 0;
         const short2 loc = (short2) (keypoints[ptidx].pt.x, keypoints[ptidx].pt.y);

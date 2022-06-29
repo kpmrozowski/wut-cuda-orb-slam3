@@ -25,9 +25,9 @@ const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
                             CLK_FILTER_NEAREST;
 
 #define GET_VALUE(idx) \
-    read_imagei(image, iSampler, (float2)( \
-        (float)loc.x + (float)(pattern[idx].x * cosA - pattern[idx].y * sinA)+0.5f, \
-        (float)loc.y + (float)(pattern[idx].x * sinA + pattern[idx].y * cosA)+0.5f)).x
+    (int)(read_imagei(image, iSampler, (int2)( \
+        (int)((float)loc.x + pattern[idx].x * cosA - pattern[idx].y * sinA+0.5f), \
+        (int)((float)loc.y + pattern[idx].x * sinA + pattern[idx].y * cosA+0.5f))).x)
 
 #define PIXEL(idx) \
     read_imagei(image, iSampler, (int2)(idx/2+20, 20))
@@ -35,13 +35,17 @@ const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
 __attribute__((reqd_work_group_size(32,1,1)))
 __kernel void calcOrb_kernel(
     __read_only const image2d_t image,
-    __global key_point_t* keypoints, int kStep, int kOffset, int kRows, int kCols,
+    __global uchar* keypoints_, int kStep, int kOffset, int kRows, int kCols,
     // __global key_point_t* keypoints, // tak jest zle (CL_INVALID_KERNEL_ARGS)
-    __global int* descriptors, int dStep, int dOffset, int dRows, int dCols)
+    __global uchar* descriptors, int dStep, int dOffset, int dRows, int dCols,
+    npoints)
     // __global int* descriptors) // a w tym przypadku tak jest dobrze (albo albo)
 {
     const size_t id = get_group_id(0);
     const size_t tid = get_local_id(0);
+    if (id >= npoints) return;
+
+    __global key_point_t *keypoints = (__global key_point_t *)keypoints_;
     ushort2 loc = (ushort2)(keypoints[id].pt.x, keypoints[id].pt.y);
 
     Point2i *pattern = (Point2i *)bit_pattern_31_ + 16 * tid;
@@ -60,8 +64,8 @@ __kernel void calcOrb_kernel(
     t0 = GET_VALUE(12); t1 = GET_VALUE(13); val |= (t0 < t1) << 6;
     t0 = GET_VALUE(14); t1 = GET_VALUE(15); val |= (t0 < t1) << 7;
 
-    // TODO: zeros only (why?)
-    // descriptors[tid + id * get_local_size(0)] = (uchar)(1000 * (t1 - t0));
+    // descriptors[tid] = (uchar)val;
+    descriptors[get_global_id(0)] = (uchar)val;
 
     // debuging:
 // descriptors[tid + id * get_local_size(0)] = (uchar)(PIXEL(tid).x);

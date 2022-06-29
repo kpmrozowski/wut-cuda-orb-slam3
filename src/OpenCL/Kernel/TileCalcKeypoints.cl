@@ -1,3 +1,4 @@
+#include "OpenCL/Kernel/key_point.hpp"
 #include "OpenCL/Kernel/c_table.cl"
 
 const sampler_t iSampler =  CLK_NORMALIZED_COORDS_FALSE |
@@ -289,11 +290,13 @@ void calcFibbonacci(int n) {
 __attribute__((reqd_work_group_size(32,8,1)))
 __kernel void tileCalcKeypoints_kernel(
     __read_only const image2d_t img,
-    __global short2* kpLoc, int klStep, int klOffset, int klRows, int klCols,
-    __global float* kpScore, int ksStep, int ksOffset, int ksRows, int ksCols,
+    // __global short2* kpLoc, int klStep, int klOffset, int klRows, int klCols,
+    // __global float* kpScore, int ksStep, int ksOffset, int ksRows, int ksCols,
+    __global uchar *keypoints_, int kStep, int kOffset, int kRows, int kCols,
     __private uint maxKeypoints,
     __private uint highThreshold,
     __private uint lowThreshold,
+    __private float featureSize,
     __global int* scoreMat, int sStep, int sOffset, int sRows2, int sCols2,
     __global int* debugMat, int dStep, int dOffset, int dRows, int dCols,
     __global uint* counterPtr, int cStep, int cOffset, int cRows, int cCols,
@@ -350,6 +353,7 @@ __kernel void tileCalcKeypoints_kernel(
             isKp[t] = isKeyPoint2(img, i+t, j, highThreshold, scoreMat, sRows, sCols);
         }
     }
+    __global key_point_t *keypoints = (__global key_point_t *)keypoints_;
 
     // barrieer
     barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
@@ -363,8 +367,10 @@ __kernel void tileCalcKeypoints_kernel(
                 const unsigned int ind = atomic_inc(counterPtr);
                 // printf("$\n");
                 if (ind < maxKeypoints) {
-                    kpLoc[ind] = (short2)(j, i+t);
-                    kpScore[ind] = (float)score;
+                    keypoints[ind].pt.x = (float)j;
+                    keypoints[ind].pt.y = (float)(i+t);
+                    keypoints[ind].size = (float)featureSize;
+                    keypoints[ind].response = (float)score;
                 }
             }
         }
@@ -394,8 +400,9 @@ __kernel void tileCalcKeypoints_kernel(
                 const unsigned int ind = atomic_inc(counterPtr);
                 // printf("€\n");
                 if (ind < maxKeypoints) {
-                    kpLoc[ind] = (short2)(j, i+t);
-                    kpScore[ind] = (float)score;
+                    keypoints[ind].pt.x = (float)j;
+                    keypoints[ind].pt.y = (float)(i+t);
+                    keypoints[ind].response = (float)score;
                 }
             }
         }

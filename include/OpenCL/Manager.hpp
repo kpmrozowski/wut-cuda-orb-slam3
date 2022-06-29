@@ -6,6 +6,22 @@
 #include <stdexcept>
 #include <string>
 #include <span>
+#include <utility>
+
+typedef struct
+{
+    float x;
+    float y;
+} point2f_t;
+typedef struct
+{
+    point2f_t pt;  //!< coordinates of the keypoints
+    float size;    //!< diameter of the meaningful keypoint neighborhood
+    float angle;   //!< computed orientation of the keypoint (-1 if not applicable);
+    float response;//!< the response by which the most strong keypoints have been selected. Can be used for the further sorting or subsampling
+    int octave;    //!< octave (pyramid layer) from which the keypoint has been extracted
+    int class_id;  //!< object class (if the keypoints need to be clustered by an object they belong to)
+} key_point_t;
 
 namespace ORB_SLAM3::opencl {
 
@@ -199,80 +215,9 @@ class Manager
     }
 };
 
-struct uint2 {
-    uint x, y;
-};
-
-template<typename T, int CV_TYPE = CV_8SC1>
-class CvVector
-{
-    std::vector<T> m_vec;
-    cv::Mat m_mat_before;
-    size_t m_size;
-    cv::UMat m_umat;
-    std::optional<cv::Mat> m_mat = std::nullopt;
-    bool synchronized            = true;
-
-  public:
-    explicit CvVector(std::vector<T> &&vec) :
-            m_vec(vec),
-            m_size(m_vec.size()),
-            m_mat_before(1, m_vec.size() * sizeof(T), CV_TYPE, m_vec.data())
-    {
-    }
-
-    [[nodiscard]] constexpr size_t size() { return m_size; }
-
-    [[nodiscard]] std::vector<T> &modify() { return m_vec; }
-
-    [[nodiscard]] std::span<T> before()
-    {
-        return std::span<T>{reinterpret_cast<T *>(m_mat_before.data), m_size};
-    }
-
-    [[nodiscard]] cv::UMat &umat()
-    {
-        synchronized = false;
-        m_umat       = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-        return m_umat;
-    }
-
-    [[nodiscard]] cv::ocl::KernelArg kernelArg()
-    {
-        synchronized = false;
-        m_umat       = m_mat_before.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-        return cv::ocl::KernelArg::ReadWrite(m_umat);
-    }
-
-    std::span<T> result()
-    {
-        if (not m_mat.has_value()) {
-            m_mat = m_umat.getMat(cv::ACCESS_READ);
-            return std::span<T>{reinterpret_cast<T *>(m_mat_before.data), m_size};
-        }
-        return {reinterpret_cast<T *>(m_mat.value().data), m_size};
-    }
-};
-
 }// namespace ORB_SLAM3::opencl
-
-
-typedef struct
-{
-    float x;
-    float y;
-} point2f_t;
 
 BOOST_COMPUTE_ADAPT_STRUCT(point2f_t, point2f_t, (x, y))
 
-typedef struct
-{
-    point2f_t pt;  //!< coordinates of the keypoints
-    float size;    //!< diameter of the meaningful keypoint neighborhood
-    float angle;   //!< computed orientation of the keypoint (-1 if not applicable);
-    float response;//!< the response by which the most strong keypoints have been selected. Can be used for the further sorting or subsampling
-    int octave;    //!< octave (pyramid layer) from which the keypoint has been extracted
-    int class_id;  //!< object class (if the keypoints need to be clustered by an object they belong to)
-} key_point_t;
 
 BOOST_COMPUTE_ADAPT_STRUCT(key_point_t, key_point_t, (pt, size, angle, response, octave, class_id))

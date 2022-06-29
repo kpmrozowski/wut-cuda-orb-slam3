@@ -1,4 +1,5 @@
 #include "OpenCL/Manager.hpp"
+#include <CL/cl_platform.h>
 #include <algorithm>
 #include <boost/algorithm/cxx11/all_of.hpp>
 #include <boost/compute.hpp>
@@ -27,6 +28,34 @@ key_point_t makeKp(float angle, float x, float y)
     kp.octave   = 0;
     kp.pt       = {x, y};
     return kp;
+}
+
+TEST(Cvmat, OpencvTest)
+{
+    size_t index = 3;
+    int newValue = 2;
+    std::vector<int> vec{1,2,3,4,5};
+    cv::Mat mat{vec};
+    mat.at<int>(index) = newValue;
+    for (auto v : vec) {
+        std::cout << v << ",";
+    }
+    std::cout << "\n";
+    ASSERT_EQ(vec[index], newValue);
+}
+
+TEST(Cv2mat, OpencvTest)
+{
+    std::vector<int> vec1{0,1,2,3,4};
+    std::vector<int> vec2{5,6,7,8,9};
+    cv::Mat mat1{vec1};
+    cv::Mat mat2{vec2};
+    mat2.copyTo(mat1);
+    for (auto v : vec1) {
+        std::cout << v << ",";
+    }
+    std::cout << "\n";
+    ASSERT_EQ(vec1, vec2);
 }
 
 TEST(list_boost_devices, OpenCLTest)
@@ -136,8 +165,9 @@ std::span<key_point_t> umat2vec(cv::UMat& umat, size_t size)
 cv::Mat &load_sample_image()
 {
     // auto filename = "./datasets/MH01/mav0/cam0/data/1403636579763555584.png";
-    auto filename =
-            "/home/ego/more/projects/wut-cuda-orb-slam3/datasets/dataset/sequences/03/image_0/000000.png";
+    // auto filename =
+    //         "/home/ego/more/projects/wut-cuda-orb-slam3/datasets/dataset/sequences/03/image_0/000000.png";
+    auto filename = "/shm/repos/wut-cuda-orb-slam3/datasets/MH01/mav0/cam0/data/1403636579763555584.png";
     if (not std::filesystem::is_regular_file(filename)) {
         throw std::runtime_error("image does not exist");
     } else {
@@ -431,6 +461,7 @@ std::tuple<bool, std::vector<short2>> runTileCalcKeypointsKernel_fun(cv::Mat &im
     std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
     std::cout << "\nrunning kernel";
     static chrono_tp startTime = std::chrono::high_resolution_clock::now();
+    cl_uint4 args{highThreshold, lowThreshold, (uint)image.cols, (uint)image.rows};
     auto start = manager.cv_run<2>(Program::TileCalcKeypointsKernel, globalDim.data(), blockDim.data(), true,
                                    /*image2d_t */ image2d,
                                    /*short2* */ kpLoc.kernelArg(),
@@ -440,9 +471,7 @@ std::tuple<bool, std::vector<short2>> runTileCalcKeypointsKernel_fun(cv::Mat &im
                                    /*uint */ lowThreshold,
                                    /*int* */ scoreUMat.kernelArg(),
                                    /*uint* */ debugMat.kernelArg(),
-                                   /*uint* */ counterPtr.kernelArg(),
-                                   image.rows,
-                                   image.cols);
+                                   /*uint* */ counterPtr.kernelArg());
     chrono_tp currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
     std::cout << "\nkernel finished\n";
