@@ -1,5 +1,6 @@
 build
 vscode_build
+vscode_build_O3
 out
 .vscode
 compile_commands.json

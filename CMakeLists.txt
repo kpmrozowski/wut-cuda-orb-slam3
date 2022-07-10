@@ -102,7 +102,7 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 set(CMAKE_CXX_STANDARD 20)
 
 #  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
- set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O0 -fPIC")
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC")
 #  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
 #  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 
@@ -150,11 +150,19 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 add_library(${PROJECT_NAME} SHARED
 src/System.cc
-src/Tracking.cc
+src/Tracking1.cc
+src/Tracking2.cc
+src/Tracking3.cc
+src/Tracking4.cc
+src/Tracking5.cc
 src/LocalMapping.cc
-src/LoopClosing.cc
+src/LoopClosing1.cc
+src/LoopClosing2.cc
+src/LoopClosing3.cc
 src/ORBextractor.cc
-src/ORBmatcher.cc
+src/ORBmatcher1.cc
+src/ORBmatcher2.cc
+src/ORBmatcher3.cc
 src/FrameDrawer.cc
 src/Converter.cc
 src/MapPoint.cc
@@ -162,7 +170,12 @@ src/KeyFrame.cc
 src/Atlas.cc
 src/Map.cc
 src/MapDrawer.cc
-src/Optimizer.cc
+src/Optimizer1.cc
+src/Optimizer2.cc
+src/Optimizer3.cc
+src/Optimizer4.cc
+src/Optimizer5.cc
+src/Optimizer6.cc
 src/Frame.cc
 src/KeyFrameDatabase.cc
 src/Sim3Solver.cc

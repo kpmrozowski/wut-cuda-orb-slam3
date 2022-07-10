@@ -22,8 +22,8 @@ class CvVector
   public:
     explicit CvVector(std::vector<T> &&vec) :
         m_vec(std::move(vec)),
-        m_size(m_vec.size()),
-        m_mat_before(1, m_vec.size() * sizeof(T), CV_TYPE, m_vec.data())
+        m_mat_before(1, static_cast<int>(m_vec.size() * sizeof(T)), CV_TYPE, m_vec.data()),
+        m_size(m_vec.size())
     {
     }
     // explicit CvVector(T* vec, size_t size) :
@@ -68,6 +68,13 @@ class CvVector
             return std::span<T>{reinterpret_cast<T *>(m_mat_before.data), m_size};
         }
         return {reinterpret_cast<T *>(m_mat.value().data), m_size};
+    }
+
+    T* resultPtr()
+    {
+        m_mat = cv::Mat{1, static_cast<int>(m_vec.size() * sizeof(T)), CV_TYPE};
+        m_mat = m_umat.getMat(cv::ACCESS_READ);
+        return reinterpret_cast<T*>(m_mat.value().data);
     }
 };
 
