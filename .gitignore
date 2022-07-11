@@ -45,5 +45,8 @@ datasets
 *.app
 
 cmake-build-debug
+cmake-build-release
 Examples
 Examples_old
+
+CameraTrajectory.txt

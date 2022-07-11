@@ -69,6 +69,8 @@ enum class MeasuredFunction {
     GrabImageStereo,
     Track,
     computeOrientation,
+    addBorderToCoordinates,
+    runTileCalcKeypointsKernel_fun,
     Action_Exit
 };
 
@@ -84,6 +86,8 @@ constexpr std::string_view to_string(MeasuredFunction func) {
     case MeasuredFunction::GrabImageStereo: return "GrabImageStereo";
     case MeasuredFunction::Track: return "Track";
     case MeasuredFunction::computeOrientation: return "computeOrientation";
+    case MeasuredFunction::addBorderToCoordinates: return "addBorderToCoordinates";
+    case MeasuredFunction::runTileCalcKeypointsKernel_fun: return "runTileCalcKeypointsKernel_fun";
     default: break;
     }
     return "";
