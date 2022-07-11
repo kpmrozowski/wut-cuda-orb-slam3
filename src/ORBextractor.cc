@@ -1015,7 +1015,7 @@ namespace ORB_SLAM3
             const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
             allKeypoints.resize(nlevels);
 
-            auto [start, vToDistributeKeys] = runTileCalcKeypointsKernel_fun(mvImagePyramid[level].rowRange(minBorderY, maxBorderY).colRange(minBorderX, maxBorderX), nfeatures*10, minThFAST);
+            auto [start, vToDistributeKeys] = MEASURE_RET_CALL(runTileCalcKeypointsKernel_fun, mvImagePyramid[level].rowRange(minBorderY, maxBorderY).colRange(minBorderX, maxBorderX), nfeatures*10, minThFAST);
             if (not start)
                 throw std::runtime_error("failed to run the tileCalcKeypoints_kernel");
             // float xMin = (float)mvImagePyramid[level].cols;
@@ -1061,8 +1061,8 @@ namespace ORB_SLAM3
             uint npoints = allKeypoints[level].size();
             cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U, allKeypoints[level].data()};
             cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
-            addBorderToCoordinates(cvKeyPointsUMat, npoints, minBorderX, minBorderY, level, scaledPatchSize, m_manager);
-            MEASURE_FUNC_CALL( computeOrientation, mvImagePyramid[level], allKeypoints[level], cvKeyPointsUMat, umax, m_manager);
+            MEASURE_FUNC_CALL(addBorderToCoordinates, cvKeyPointsUMat, npoints, minBorderX, minBorderY, level, scaledPatchSize, m_manager);
+            MEASURE_FUNC_CALL(computeOrientation, mvImagePyramid[level], allKeypoints[level], cvKeyPointsUMat, umax, m_manager);
         }
     }
 
@@ -1243,7 +1243,7 @@ namespace ORB_SLAM3
         // and compute orientations
         for (int level = 0; level < nlevels; ++level) {
             auto umat = cv::UMat{};
-            computeOrientation(mvImagePyramid[level], allKeypoints[level], umat, umax, m_manager);
+            MEASURE_FUNC_CALL(computeOrientation, mvImagePyramid[level], allKeypoints[level], umat, umax, m_manager);
         }
     }
 
