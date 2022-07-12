@@ -79,17 +79,17 @@ constexpr std::string_view to_string(MeasuredFunction func) {
     switch (func) {
     case MeasuredFunction::Foo: return "foo";
     case MeasuredFunction::Bar: return "bar";
-    case MeasuredFunction::ComputeKeyPointsOctTree: return "ComputeKeyPointsOctTree";
-    case MeasuredFunction::DistributeOctTree: return "DistributeOctTree";
-    case MeasuredFunction::ComputePyramid: return "ComputePyramid";
-    case MeasuredFunction::computeDescriptors: return "computeDescriptors";
-    case MeasuredFunction::GaussianBlur: return "GaussianBlur";
-    case MeasuredFunction::GrabImageStereo: return "GrabImageStereo";
     case MeasuredFunction::Track: return "Track";
-    case MeasuredFunction::computeOrientation: return "computeOrientation";
-    case MeasuredFunction::addBorderToCoordinates: return "addBorderToCoordinates";
-    case MeasuredFunction::runTileCalcKeypointsKernel_fun: return "runTileCalcKeypointsKernel_fun";
-    case MeasuredFunction::extractorParenthesis: return "extractorParenthesis";
+    case MeasuredFunction::GrabImageStereo: return "0.0.0_x1_GrabImageStereo";
+    case MeasuredFunction::extractorParenthesis: return "1.0.0_x2_extractorParenthesis";
+    case MeasuredFunction::ComputePyramid: return "1.1.0_x1_ComputePyramid";
+    case MeasuredFunction::ComputeKeyPointsOctTree: return "1.2.0_x1_ComputeKeyPointsOctTree";
+    case MeasuredFunction::runTileCalcKeypointsKernel_fun: return "1.2.1_x8_runTileCalcKeypointsKernel_fun";
+    case MeasuredFunction::DistributeOctTree: return "1.2.2_x8_DistributeOctTree";
+    case MeasuredFunction::addBorderToCoordinates: return "1.2.3_x8_addBorderToCoordinates";
+    case MeasuredFunction::computeOrientation: return "1.2.4_x8_computeOrientation";
+    case MeasuredFunction::GaussianBlur: return "1.3.0_x8_GaussianBlur";
+    case MeasuredFunction::computeDescriptors: return "1.4.0_x8_computeDescriptors";
     default: break;
     }
     return "";
