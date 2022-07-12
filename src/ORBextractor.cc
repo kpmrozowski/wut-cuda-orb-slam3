@@ -52,70 +52,94 @@
 */
 
 
-#include <fmt/core.h>
-#include <memory>
 #include <opencv2/core/core.hpp>
-// #include <opencv2/core/ocl.hpp>
-#include <boost/range/algorithm_ext/for_each.hpp>
-#include <iostream>
-#include <opencv2/core/mat.hpp>
-#include <opencv2/core/ocl.hpp>
-#include <opencv2/core/types.hpp>
-#include <opencv2/features2d/features2d.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <orb/Benchmark.h>
 #include <vector>
+#include <iostream>
 
-#include "OpenCL/CvVector.hpp"
 #include "ORBextractor.h"
-
-#define FEATURE_SIZE 7.0f
+#include "src/Benchmark/include/orb/Benchmark.h"
 
 
 // using namespace cv;
 // using namespace std;
+using std::vector;
+using std::pair;
 using std::list;
 using std::make_pair;
-using std::pair;
-using std::vector;
 
-using cv::BORDER_ISOLATED;
-using cv::BORDER_REFLECT_101;
-using cv::fastAtan2;
-using cv::InputArray;
-using cv::INTER_LINEAR;
-using cv::KeyPoint;
-using cv::KeyPointsFilter;
 using cv::Mat;
-using cv::OutputArray;
-using cv::Point;
 using cv::Point2f;
-using cv::Rect;
+using cv::KeyPoint;
+using cv::Point;
+using cv::fastAtan2;
+using cv::KeyPointsFilter;
+using cv::InputArray;
+using cv::OutputArray;
 using cv::Size;
+using cv::BORDER_REFLECT_101;
+using cv::Rect;
+using cv::INTER_LINEAR;
+using cv::BORDER_ISOLATED;
 
 namespace ORB_SLAM3 {
 
-const int PATCH_SIZE      = 31;
+const int PATCH_SIZE = 31;
 const int HALF_PATCH_SIZE = 15;
-const int EDGE_THRESHOLD  = 19;
+const int EDGE_THRESHOLD = 19;
 
-const float factorPI = (float) (CV_PI / 180.f);
 
-static void computeOrbDescriptor(const KeyPoint &kpt, const Mat &img, const Point *pattern, uchar *desc)
+static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
 {
-    float angle = (float) kpt.angle * factorPI;
-    float a = (float) cos(angle), b = (float) sin(angle);
+    int m_01 = 0, m_10 = 0;
 
-    const uchar *center = &img.at<uchar>(cvRound(kpt.pt.y), cvRound(kpt.pt.x));
-    const int step      = (int) img.step;
+    const uchar* center = &image.at<uchar> (cvRound(pt.y), cvRound(pt.x));
 
-#define GET_VALUE(idx)                                               \
-    center[cvRound(pattern[idx].x * b + pattern[idx].y * a) * step + \
-           cvRound(pattern[idx].x * a - pattern[idx].y * b)]
+    // Treat the center line differently, v=0
+    for (int u = -HALF_PATCH_SIZE; u <= HALF_PATCH_SIZE; ++u)
+        m_10 += u * center[u];
+
+    // Go line by line in the circuI853lar patch
+    int step = (int)image.step1();
+    for (int v = 1; v <= HALF_PATCH_SIZE; ++v)
+    {
+        // Proceed over the two lines
+        int v_sum = 0;
+        int d = u_max[v];
+        for (int u = -d; u <= d; ++u)
+        {
+            int val_plus = center[u + v*step], val_minus = center[u - v*step];
+            v_sum += (val_plus - val_minus);
+            m_10 += u * (val_plus + val_minus);
+        }
+        m_01 += v * v_sum;
+    }
+
+    return fastAtan2((float)m_01, (float)m_10);
+}
 
 
-    for (int i = 0; i < 32; ++i, pattern += 16) {
+const float factorPI = (float)(CV_PI/180.f);
+static void computeOrbDescriptor(const KeyPoint& kpt,
+                                    const Mat& img, const Point* pattern,
+                                    uchar* desc)
+{
+    float angle = (float)kpt.angle*factorPI;
+    float a = (float)cos(angle), b = (float)sin(angle);
+
+    const uchar* center = &img.at<uchar>(cvRound(kpt.pt.y), cvRound(kpt.pt.x));
+    const int step = (int)img.step;
+
+#define GET_VALUE(idx) \
+    center[cvRound(pattern[idx].x*b + pattern[idx].y*a)*step + \
+            cvRound(pattern[idx].x*a - pattern[idx].y*b)]
+
+
+    for (int i = 0; i < 32; ++i, pattern += 16)
+    {
         int t0, t1, val;
         t0  = GET_VALUE(0);
         t1  = GET_VALUE(1);
@@ -467,49 +491,13 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels, int
     }
 }
 
-static void computeOrientation(const Mat &image, vector<KeyPoint> &keypoints, cv::UMat &cvKeyPointsUMat,
-                               const vector<int> &umax, opencl::Manager &manager)
+static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
 {
-    if (keypoints.empty())
-        return;
-
-    const uint npoints = keypoints.size();
-    ORB_SLAM3::opencl::uint2 dimBlock{32, 8};
-    ORB_SLAM3::opencl::uint2 dimGrid{(uint) cv::divUp(static_cast<int>(npoints), (dimBlock.y)), 1u};
-
-    std::vector<size_t> globalDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
-    std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
-
-    // opencl::CvVector<key_point_t> cvKeyPoints{reinterpret_cast<key_point_t*>(keypoints.data()), npoints};
-    // cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U, keypoints.data()};
-    // cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
-
-    cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-
-    uint half_k = 15u;
-
-    auto start = manager.cv_run<2>(opencl::Program::AngleKernel, globalDim.data(), blockDim.data(), true,
-                                   /*unsigned char* */ umat_src,
-                                   // /*key_point_t* */ cvKeyPoints.kernelArg(),
-                                   /*key_point_t* */ cv::ocl::KernelArg::ReadWrite(cvKeyPointsUMat),
-                                   /*uint */ npoints,
-                                   /*uint */ half_k);
-
-    if (not start)
-        throw std::runtime_error("failed to run the AngleKernel");
-    cv::Mat keypointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8UC1,
-                         reinterpret_cast<uchar *>(keypoints.data())};
-    cv::Mat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8UC1,
-            cvKeyPointsUMat.getMat(cv::ACCESS_READ).data}
-            .copyTo(keypointsMat);
-
-    // cvKeyPoints.get(keypointsMat);
-    // auto result = cvKeyPoints.result();
-    // auto it = result.begin();
-    // for (auto& kp : keypoints) {
-    //     kp.angle = it->angle;
-    //     it++;
-    // }
+    for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
+                    keypointEnd = keypoints.end(); keypoint != keypointEnd; ++keypoint)
+    {
+        keypoint->angle = IC_Angle(image, keypoint->pt, umax);
+    }
 }
 
 void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4)
@@ -773,257 +761,155 @@ vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint> 
     return vResultKeys;
 }
 
-struct short2
+void addBorderToCoordinates(vector<KeyPoint> & keypoints, const int minBorderX, const int minBorderY, int level, const int scaledPatchSize)
 {
-    short x;
-    short y;
-};
-
-std::tuple<bool, std::vector<cv::KeyPoint>>
-runTileCalcKeypointsKernel_fun(InputArray image, const int nfeatures, const int minThFAST)
-{
-    auto &manager     = ORB_SLAM3::opencl::Manager::the();
-    cv::UMat umat_src = image.getUMat();//(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-    cv::ocl::Image2D image2d{umat_src};
-    uint maxKeypoints  = nfeatures;
-    uint highThreshold = 20;
-    uint lowThreshold  = static_cast<uint>(minThFAST);
-    uint imgRows       = static_cast<uint>(image.size().height);
-    uint imgCols       = static_cast<uint>(image.size().width);
-
-    const struct
+    const int nkps = keypoints.size();
+    for(int i=0; i<nkps ; i++)
     {
-        uint x = 32;
-        uint y = 8;
-    } dimBlock;
-
-    const struct
-    {
-        uint x;
-        uint y;
-    } dimGrid = {(uint) cv::divUp(image.size().width, dimBlock.x),
-                 (uint) cv::divUp(image.size().height, dimBlock.y * 4u)};
-
-    opencl::CvVector counterPtr{std::vector<uint>(1)};
-    // opencl::CvVector debugMat{std::vector<uint>(dimGrid.x * dimGrid.y * dimBlock.x * dimBlock.y)};
-    opencl::CvVector scoreUMat{std::vector<int>(imgRows * imgCols)};
-    opencl::CvVector<key_point_t> cvKeyPoints{std::vector<key_point_t>(maxKeypoints)};
-    std::vector<size_t> globalDim{dimGrid.x * dimBlock.x, dimGrid.y * dimBlock.y};
-    std::vector<size_t> blockDim{dimBlock.x, dimBlock.y};
-    // fmt::print("\nrunning kernel");
-    auto start = manager.cv_run<2>(opencl::Program::TileCalcKeypointsKernel, globalDim.data(),
-                                   blockDim.data(), true,
-                                   /*image2d_t */ image2d,
-                                   // /*short2* */ kpLoc.kernelArg(),
-                                   /*key_point_t* */ cvKeyPoints.kernelArg(),
-                                   /*uint */ maxKeypoints,
-                                   /*uint */ highThreshold,
-                                   /*uint */ lowThreshold,
-                                   /*float */ FEATURE_SIZE,
-                                   /*int* */ scoreUMat.kernelArg(),
-                                   // /*uint* */ debugMat.kernelArg(),
-                                   /*uint* */ counterPtr.kernelArg(),
-                                   /*uint */ imgRows,
-                                   /*uint */ imgCols);
-    // fmt::print("\nkernel finished\n");
-    if (not start) {
-        std::cout << "\nkernel did not start!\n";
-        return {start, {}};
+        keypoints[i].pt.x+=minBorderX;
+        keypoints[i].pt.y+=minBorderY;
+        keypoints[i].octave=level;
+        keypoints[i].size = scaledPatchSize;
     }
-    size_t keyPointsSize =
-            std::min(static_cast<size_t>(maxKeypoints), static_cast<size_t>(counterPtr.resultPtr()[0]));
-    // std::cout << "keyPointsSize: " << keyPointsSize << ", maxKeypoints: " << static_cast<size_t>(maxKeypoints) << ", counterPtr.resultPtr()[0]: " << static_cast<size_t>(counterPtr.resultPtr()[0]) << "\n";
-    key_point_t *cvKeyPointsResult = cvKeyPoints.resultPtr();
-    std::vector<key_point_t> cvKeyPointsVec{cvKeyPointsResult, std::next(cvKeyPointsResult, keyPointsSize)};
-    // cvKeyPointsVec.resize(keyPointsSize);
-    std::vector<cv::KeyPoint> cvKeyPointsVecCv{
-            reinterpret_cast<cv::KeyPoint *>(cvKeyPointsVec.data()),
-            reinterpret_cast<cv::KeyPoint *>(std::next(cvKeyPointsVec.data(), cvKeyPointsVec.size()))};
-    // for (auto kp : cvKeyPointsVecCv) {
-    //     fmt::print("({},{},{})", kp.pt.x, kp.pt.y, kp.response);
-    // }
-    // std::cout << "(all)\n";
-    return {start, cvKeyPointsVecCv};
 }
 
-void addBorderToCoordinates(cv::UMat &cvKeyPointsUMat, uint &npoints, float minBorderX, float minBorderY,
-                            float octave, float size, opencl::Manager &manager)
+void runTileCalcKeypointsKernel_fun(
+    vector<cv::KeyPoint> &vToDistributeKeys,
+    std::vector<cv::Mat> &mvImagePyramid,
+    int nfeatures,
+    const int minBorderX,
+    const int maxBorderX,
+    const int minBorderY,
+    const int maxBorderY,
+    int level,
+    const float W,
+    int iniThFAST,
+    int minThFAST)
 {
-    std::vector<size_t> blockDim{256};
-    std::vector<size_t> globalDim{blockDim[0] * cv::divUp(static_cast<int>(npoints), blockDim[0])};
-    auto start = manager.cv_run<1>(opencl::Program::AddBorderKernel, globalDim.data(), blockDim.data(), true,
-                                   /*key_point_t* */ cv::ocl::KernelArg::ReadWrite(cvKeyPointsUMat),
-                                   /*uint*/ npoints,
-                                   /*float*/ minBorderX,
-                                   /*float*/ minBorderY,
-                                   /*float*/ octave,
-                                   /*float*/ size);
-    if (not start)
-        throw std::runtime_error("failed to run the AddBorderKernel");
-    // cv::Mat keypointsMat{1, static_cast<int>(keypoints.size() * sizeof(cv::KeyPoint)), CV_8UC1, reinterpret_cast<uchar*>(keypoints.data())};
-    // cv::Mat{1, static_cast<int>(keypoints.size() * sizeof(cv::KeyPoint)), CV_8UC1, cvKeyPointsUMat.getMat(cv::ACCESS_READ).data}.copyTo(keypointsMat);
-}
+    vToDistributeKeys.reserve(nfeatures*10);
 
-vector<cv::KeyPoint> tileCalcKeypoints(cv::Mat &img, int level, int border, int nfeatures, int iniThFAST,
-                                       int minThFAST)
-{
-    const int minBorderX = border;
-    const int minBorderY = border;
+    const float width = (maxBorderX-minBorderX);
+    const float height = (maxBorderY-minBorderY);
 
-    const float W        = 35;
-    const int maxBorderX = img.cols - EDGE_THRESHOLD + 3;
-    const int maxBorderY = img.rows - EDGE_THRESHOLD + 3;
+    const int nCols = width/W;
+    const int nRows = height/W;
+    const int wCell = ceil(width/nCols);
+    const int hCell = ceil(height/nRows);
 
-    vector<cv::KeyPoint> vToDistributeKeys;
-    vToDistributeKeys.reserve(nfeatures * 10);
+    for(int i=0; i<nRows; i++)
+    {
+        const float iniY =minBorderY+i*hCell;
+        float maxY = iniY+hCell+6;
 
-    const float width  = (maxBorderX - minBorderX);
-    const float height = (maxBorderY - minBorderY);
-
-    const int nCols = width / W;
-    const int nRows = height / W;
-    const int wCell = ceil(width / nCols);
-    const int hCell = ceil(height / nRows);
-    // fmt::print("minBorderX={}, maxBorderX={}, maxBorderY={}, width={}, height={}, nRows={}, nCols={}, wCell={}, hCell={}\n", minBorderX, maxBorderX, maxBorderY, width, height, nRows, nCols, wCell, hCell);
-
-    for (int i = 0; i < nRows; i++) {
-        const float iniY = minBorderY + i * hCell;
-        float maxY       = iniY + hCell + 6;
-
-        if (iniY >= maxBorderY - 3)
+        if(iniY>=maxBorderY-3)
             continue;
-        if (maxY > maxBorderY)
+        if(maxY>maxBorderY)
             maxY = maxBorderY;
 
-        for (int j = 0; j < nCols; j++) {
-            const float iniX = minBorderX + j * wCell;
-            float maxX       = iniX + wCell + 6;
-            if (iniX >= maxBorderX - 6)
+        for(int j=0; j<nCols; j++)
+        {
+            const float iniX =minBorderX+j*wCell;
+            float maxX = iniX+wCell+6;
+            if(iniX>=maxBorderX-6)
                 continue;
-            if (maxX > maxBorderX)
+            if(maxX>maxBorderX)
                 maxX = maxBorderX;
 
             vector<cv::KeyPoint> vKeysCell;
 
-            FAST(img.rowRange(iniY, maxY).colRange(iniX, maxX), vKeysCell, iniThFAST, true);
+            FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                    vKeysCell,iniThFAST,true);
 
             /*if(bRight && j <= 13){
+                FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                        vKeysCell,10,true);
+            }
+            else if(!bRight && j >= 16){
+                FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                        vKeysCell,10,true);
+            }
+            else{
+                FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                        vKeysCell,iniThFAST,true);
+            }*/
+
+
+            if(vKeysCell.empty())
+            {
+                FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
+                        vKeysCell,minThFAST,true);
+                /*if(bRight && j <= 13){
                     FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                            vKeysCell,10,true);
+                            vKeysCell,5,true);
                 }
                 else if(!bRight && j >= 16){
                     FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                            vKeysCell,10,true);
+                            vKeysCell,5,true);
                 }
                 else{
                     FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                            vKeysCell,iniThFAST,true);
+                            vKeysCell,minThFAST,true);
                 }*/
-
-
-            if (vKeysCell.empty()) {
-                FAST(img.rowRange(iniY, maxY).colRange(iniX, maxX), vKeysCell, minThFAST, true);
-                /*if(bRight && j <= 13){
-                        FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                                vKeysCell,5,true);
-                    }
-                    else if(!bRight && j >= 16){
-                        FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                                vKeysCell,5,true);
-                    }
-                    else{
-                        FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
-                                vKeysCell,minThFAST,true);
-                    }*/
             }
 
-            if (!vKeysCell.empty()) {
-                for (vector<cv::KeyPoint>::iterator vit = vKeysCell.begin(); vit != vKeysCell.end(); vit++) {
-                    (*vit).pt.x += j * wCell;
-                    (*vit).pt.y += i * hCell;
+            if(!vKeysCell.empty())
+            {
+                for(vector<cv::KeyPoint>::iterator vit=vKeysCell.begin(); vit!=vKeysCell.end();vit++)
+                {
+                    (*vit).pt.x+=j*wCell;
+                    (*vit).pt.y+=i*hCell;
                     vToDistributeKeys.push_back(*vit);
                 }
             }
         }
     }
-    return vToDistributeKeys;
 }
 
-std::tuple<bool, std::vector<cv::KeyPoint>>
-runTileCalcKeypointsKernel_fun2(InputArray image, const int nfeatures, const int minThFAST)
+void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoints)
 {
-    return {true, {}};
-}
+    allKeypoints.resize(nlevels);
+    const int minBorderX = EDGE_THRESHOLD-3;
+    const int minBorderY = minBorderX;
 
-void ORBextractor::ComputeKeyPointsOctTree(std::vector<std::vector<cv::KeyPoint>> &allKeypoints)
-{
-    const int border     = EDGE_THRESHOLD - 3;
-    const int minBorderX = border;
-    const int minBorderY = border;
+    const float W = 35;
 
-    for (int level = 0; level < nlevels; ++level) {
-        const int maxBorderX = mvImagePyramid[level].cols - EDGE_THRESHOLD + 3;
-        const int maxBorderY = mvImagePyramid[level].rows - EDGE_THRESHOLD + 3;
-        allKeypoints.resize(nlevels);
+    for (int level = 0; level < nlevels; ++level)
+    {
+        const int maxBorderX = mvImagePyramid[level].cols-EDGE_THRESHOLD+3;
+        const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
+        vector<cv::KeyPoint> vToDistributeKeys;
+        MEASURE_FUNC_CALL(
+            runTileCalcKeypointsKernel_fun,
+            vToDistributeKeys,
+            mvImagePyramid,
+            nfeatures,
+            minBorderX,
+            maxBorderX,
+            minBorderY,
+            maxBorderY,
+            level,
+            W,
+            iniThFAST,
+            minThFAST
+        );
 
-        auto [start, vToDistributeKeys] = MEASURE_RET_CALL(
-                runTileCalcKeypointsKernel_fun,
-                mvImagePyramid[level].rowRange(minBorderY, maxBorderY).colRange(minBorderX, maxBorderX),
-                nfeatures * 10, minThFAST);
-        if (not start)
-            throw std::runtime_error("failed to run the tileCalcKeypoints_kernel");
-        // float xMin = (float)mvImagePyramid[level].cols;
-        // float xMax = (float)0;
-        // float yMin = (float)mvImagePyramid[level].rows;
-        // float yMax = (float)0;
-        // float scoreMin = (float)10000;
-        // float scoreMax = (float)0;
-        // for (auto kp : vToDistributeKeys) {
-        //     if (kp.pt.x < xMin) xMin = kp.pt.x;
-        //     if (kp.pt.x > xMax) xMax = kp.pt.x;
-        //     if (kp.pt.y < yMin) yMin = kp.pt.y;
-        //     if (kp.pt.y > yMax) yMax = kp.pt.y;
-        //     if (kp.response < scoreMin) scoreMin = kp.response;
-        //     if (kp.response > scoreMax) scoreMax = kp.response;
-        // }
-        // fmt::print("vToDistributeKeys size: {}, x in ({},{}), y in ({},{}), score in ({},{})\n", vToDistributeKeys.size(), xMin, xMax, yMin, yMax, scoreMin, scoreMax);
-        if (0 == vToDistributeKeys.size()) {
-            // fmt::print("0 == vToDistributeKeys.size()\n");
-            vToDistributeKeys =
-                    tileCalcKeypoints(mvImagePyramid[level], level, border, nfeatures, iniThFAST, minThFAST);
-        }
-
-        vector<KeyPoint> &keypoints = allKeypoints[level];
+        vector<KeyPoint> & keypoints = allKeypoints[level];
         keypoints.reserve(nfeatures);
+
         keypoints = orb::benchmark::measure_function(orb::benchmark::MeasuredFunction::DistributeOctTree,
                                                      &ORBextractor::DistributeOctTree, this,
                                                      vToDistributeKeys, minBorderX, maxBorderX, minBorderY,
                                                      maxBorderY, mnFeaturesPerLevel[level], level);
 
+        const int scaledPatchSize = PATCH_SIZE*mvScaleFactor[level];
 
         // Add border to coordinates and scale information
-        // const int nkps = keypoints.size();
-        // for(int i=0; i<nkps ; i++)
-        // {
-        //     keypoints[i].pt.x+=minBorderX;
-        //     keypoints[i].pt.y+=minBorderY;
-        //     keypoints[i].octave=level;
-        //     keypoints[i].size = scaledPatchSize;
-        // }
+        MEASURE_FUNC_CALL(addBorderToCoordinates, keypoints, minBorderX, minBorderY, level, scaledPatchSize);
     }
 
     // compute orientations
-    for (int level = 0; level < nlevels; ++level) {
-        const int scaledPatchSize = PATCH_SIZE * mvScaleFactor[level];
-        uint npoints              = allKeypoints[level].size();
-        cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U,
-                               allKeypoints[level].data()};
-        cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
-        MEASURE_FUNC_CALL(addBorderToCoordinates, cvKeyPointsUMat, npoints, minBorderX, minBorderY, level,
-                          scaledPatchSize, m_manager);
-        MEASURE_FUNC_CALL(computeOrientation, mvImagePyramid[level], allKeypoints[level], cvKeyPointsUMat,
-                          umax, m_manager);
-    }
+    for (int level = 0; level < nlevels; ++level)
+        MEASURE_FUNC_CALL(computeOrientation, mvImagePyramid[level], allKeypoints[level], umax);
 }
 
 void ORBextractor::ComputeKeyPointsOld(std::vector<std::vector<KeyPoint>> &allKeypoints)
@@ -1179,49 +1065,17 @@ void ORBextractor::ComputeKeyPointsOld(std::vector<std::vector<KeyPoint>> &allKe
     // and compute orientations
     for (int level = 0; level < nlevels; ++level) {
         auto umat = cv::UMat{};
-        MEASURE_FUNC_CALL(computeOrientation, mvImagePyramid[level], allKeypoints[level], umat, umax,
-                          m_manager);
+        computeOrientation(mvImagePyramid[level], allKeypoints[level], umax);
     }
 }
 
 static void computeDescriptors(const Mat &image, vector<KeyPoint> &keypoints, Mat &descriptors,
                                const vector<Point> &pattern, opencl::Manager &manager)
 {
-    descriptors = Mat::zeros((int) keypoints.size(), 32, CV_8UC1);
+    descriptors = Mat::zeros((int)keypoints.size(), 32, CV_8UC1);
 
-    // for (size_t i = 0; i < keypoints.size(); i++)
-    //     computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
-
-    cv::UMat umat_src = image.getUMat(cv::ACCESS_READ, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-    cv::ocl::Image2D image2d{umat_src};
-    uint npoints = keypoints.size();
-    cv::Mat cvKeyPointsMat{1, static_cast<int>(npoints * sizeof(cv::KeyPoint)), CV_8U, keypoints.data()};
-    cv::UMat cvKeyPointsUMat = cvKeyPointsMat.getUMat(cv::ACCESS_RW);
-
-    opencl::CvVector cvDescriptors{std::vector<uchar>(npoints * 32)};
-    // cv::UMat descriptorsUMat = descriptors.getUMat(cv::ACCESS_RW);
-
-    std::vector<size_t> blockDim{32};
-    std::vector<size_t> globalDim{blockDim[0] * npoints};
-    auto start = manager.cv_run<1>(opencl::Program::OrbKernel, globalDim.data(), blockDim.data(), true,
-                                   /*image2d_t */ image2d,
-                                   // /*key_point_t* */ cvKeyPoints.kernelArg(),
-                                   /*key_point_t* */ cv::ocl::KernelArg::ReadWrite(cvKeyPointsUMat),
-                                   // /*uchar */ descriptorsUMat);
-                                   /*uchar */ cvDescriptors.kernelArg(), npoints);
-    if (not start)
-        throw std::runtime_error("failed to run the OrbKernel");
-    // std::cout << "cvDescriptors:\n\n";
-    // // cvDescriptors.get(descriptors);
-    // cvDescriptors.umat().getMat(cv::ACCESS_READ).copyTo(descriptors);
-    cv::Mat{(int) keypoints.size(), 32, CV_8UC1, cvDescriptors.umat().getMat(cv::ACCESS_READ).data}.copyTo(
-            descriptors);
-    // std::cout << "\n\n" << descriptors << "\n\n";
-    // // auto result = cvDescriptors.result();
-    // // for (int i = 0; i < 10; ++i)
-    // //     std::cout << result[i] << " ";
-    // // std::cout << "\n\n";
-    // exit(0);
+    for (size_t i = 0; i < keypoints.size(); i++)
+        computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
 }
 
 int ORBextractor::operator()(InputArray _image, InputArray _mask, vector<KeyPoint> &_keypoints,
@@ -1328,4 +1182,4 @@ void ORBextractor::ComputePyramid(cv::Mat image)
     }
 }
 
-}// namespace ORB_SLAM3
+} //namespace ORB_SLAM
