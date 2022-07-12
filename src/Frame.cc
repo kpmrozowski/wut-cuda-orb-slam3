@@ -25,7 +25,9 @@
 #include "Converter.h"
 #include "ORBmatcher.h"
 #include "GeometricCamera.h"
+#include "orb/Benchmark.h"
 
+#include <opencv2/core/mat.hpp>
 #include <thread>
 #include <include/CameraModels/Pinhole.h>
 #include <include/CameraModels/KannalaBrandt8.h>
@@ -415,13 +417,41 @@ void Frame::AssignFeaturesToGrid()
     }
 }
 
+inline int extractorParenthesis(
+    ORBextractor &extractor,
+    const cv::Mat &_image,
+    vector<cv::KeyPoint> &_keypoints,
+    cv::Mat& _descriptors,
+    std::vector<int> &vLappingArea)
+{
+    return extractor(_image,cv::Mat{},_keypoints,_descriptors,vLappingArea);
+}
+
 void Frame::ExtractORB(int flag, const cv::Mat &im, const int x0, const int x1)
 {
     vector<int> vLapping = {x0,x1};
-    if(flag==0)
-        monoLeft = (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors,vLapping);
-    else
-        monoRight = (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight,vLapping);
+    if(flag==0) {
+        monoLeft = MEASURE_RET_CALL(
+            extractorParenthesis,
+            *mpORBextractorLeft,
+            im,
+            mvKeys,
+            mDescriptors,
+            vLapping
+        );
+        // monoLeft = (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors,vLapping);
+    }
+    else {
+        monoRight = MEASURE_RET_CALL(
+            extractorParenthesis,
+            *mpORBextractorRight,
+            im,
+            mvKeysRight,
+            mDescriptorsRight,
+            vLapping
+        );
+        // monoRight = (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight,vLapping);
+    }
 }
 
 bool Frame::isSet() const {

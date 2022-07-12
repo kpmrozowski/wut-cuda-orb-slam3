@@ -71,6 +71,7 @@ enum class MeasuredFunction {
     computeOrientation,
     addBorderToCoordinates,
     runTileCalcKeypointsKernel_fun,
+    extractorParenthesis,
     Action_Exit
 };
 
@@ -88,6 +89,7 @@ constexpr std::string_view to_string(MeasuredFunction func) {
     case MeasuredFunction::computeOrientation: return "computeOrientation";
     case MeasuredFunction::addBorderToCoordinates: return "addBorderToCoordinates";
     case MeasuredFunction::runTileCalcKeypointsKernel_fun: return "runTileCalcKeypointsKernel_fun";
+    case MeasuredFunction::extractorParenthesis: return "extractorParenthesis";
     default: break;
     }
     return "";
