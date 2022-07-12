@@ -71,6 +71,7 @@ enum class MeasuredFunction {
     computeOrientation,
     addBorderToCoordinates,
     runTileCalcKeypointsKernel_fun,
+    extractorParenthesis,
     Action_Exit
 };
 
@@ -88,6 +89,7 @@ constexpr std::string_view to_string(MeasuredFunction func) {
     case MeasuredFunction::computeOrientation: return "computeOrientation";
     case MeasuredFunction::addBorderToCoordinates: return "addBorderToCoordinates";
     case MeasuredFunction::runTileCalcKeypointsKernel_fun: return "runTileCalcKeypointsKernel_fun";
+    case MeasuredFunction::extractorParenthesis: return "extractorParenthesis";
     default: break;
     }
     return "";
@@ -126,7 +128,7 @@ template<typename TFunction, typename... TArgs>
 inline auto measure_function(MeasuredFunction name, TFunction &&func, TArgs&& ...args) {
     auto before = std::chrono::system_clock::now();
     auto before_cycles = std::chrono::high_resolution_clock::now();
-    auto&& result = std::invoke(func, args...);
+    auto&& result = std::invoke(func, std::forward<TArgs>(args)...);
     Benchmark::the().log(name, std::chrono::system_clock::now() - before,  std::chrono::high_resolution_clock::now() - before_cycles);
     return std::forward<std::decay_t<decltype(result)>>(result);
 }
@@ -135,7 +137,7 @@ template<typename TFunction, typename... TArgs>
 inline void measure_function_void(MeasuredFunction name, TFunction &&func, TArgs&& ...args) {
     auto before = std::chrono::system_clock::now();
     auto before_cycles = std::chrono::high_resolution_clock::now();
-    std::invoke(func, args...);
+    std::invoke(func, std::forward<TArgs>(args)...);
     Benchmark::the().log(name, std::chrono::system_clock::now() - before,  std::chrono::high_resolution_clock::now() - before_cycles);
 }
 
